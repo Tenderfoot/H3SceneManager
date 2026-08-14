@@ -1,0 +1,17 @@
+{
+  "id": "char_4a9859be",
+  "name": "Michael Scott",
+  "face_image": "michael scott.png",
+  "voice_audio": "",
+  "attire_options": [
+    {
+      "id": "attire_e6e100a0",
+      "label": "Starfleet Captain Uniform",
+      "image_path": "michael_attire.png",
+      "description": "",
+      "is_default": true
+    }
+  ],
+  "appearance_description": "",
+  "properties": {}
+}

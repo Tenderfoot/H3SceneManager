@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Scene Forge</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Scene Forge</h1>
+  <nav>
+    <button data-tab="characters" class="tab active">Characters</button>
+    <button data-tab="settings" class="tab">Settings</button>
+    <button data-tab="scenes" class="tab">Scenes</button>
+  </nav>
+</header>
+
+<main>
+  <section id="tab-characters" class="tab-panel active">
+    <h2>Characters</h2>
+    <form id="character-form" class="entity-form">
+      <input type="hidden" name="id">
+      <input type="text" name="name" placeholder="Name" required>
+      <input type="text" name="face_image" placeholder="Absolute path to face reference image">
+      <input type="text" name="voice_audio" placeholder="Absolute path to voice reference audio">
+      <textarea name="appearance_description" placeholder="Visual appearance for the prompt (hair, build, face -- not clothing)"></textarea>
+
+      <div class="attire-editor">
+        <div class="attire-editor-label">Attire options</div>
+        <div id="attire-rows"></div>
+        <button type="button" id="add-attire-row">+ Add attire option</button>
+      </div>
+
+      <textarea name="properties" placeholder='Other custom properties as JSON, e.g. {"personality": "wry, guarded"}'></textarea>
+      <button type="submit">Save Character</button>
+    </form>
+    <div id="character-list" class="entity-list"></div>
+  </section>
+
+  <section id="tab-settings" class="tab-panel">
+    <h2>Settings</h2>
+    <form id="setting-form" class="entity-form">
+      <input type="hidden" name="id">
+      <input type="text" name="name" placeholder="Name" required>
+      <input type="text" name="reference_image" placeholder="Absolute path to reference image">
+      <input type="text" name="ambient_audio" placeholder="Absolute path to ambient audio (descriptive-only, not wired as a reference asset)">
+      <textarea name="visual_description" placeholder="Visual description of the environment for the prompt"></textarea>
+      <textarea name="soundscape_description" placeholder="overall_soundscape text, e.g. 'A low ambient hum continues throughout.'"></textarea>
+      <textarea name="properties" placeholder='Other custom properties as JSON'></textarea>
+      <button type="submit">Save Setting</button>
+    </form>
+    <div id="setting-list" class="entity-list"></div>
+  </section>
+
+  <section id="tab-scenes" class="tab-panel">
+    <h2>Scenes</h2>
+    <form id="scene-form" class="entity-form">
+      <input type="hidden" name="id">
+      <input type="text" name="name" placeholder="Scene name" required>
+      <select name="setting_id" id="scene-setting-select"></select>
+
+      <div class="casting-builder">
+        <div class="casting-builder-label">Characters in this scene</div>
+        <div class="casting-add-row">
+          <select id="casting-character-select"></select>
+          <select id="casting-attire-select"></select>
+          <button type="button" id="add-casting-btn">+ Add Character</button>
+        </div>
+        <div id="staged-castings-list"></div>
+        <button type="button" id="reset-castings-btn">Reset characters</button>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="scene-summary-premise">Scene premise (for the prompt's "summary" section)</label>
+        <p class="field-hint">
+          Keep this short and tag-based, not a retelling of the scene: describe the overall
+          reference relationships in a sentence or two (e.g. "Grant and Zara meet and walk
+          together down the corridor"). Don't restate specific dialogue or actions that already
+          live in your beats below -- those get written out in full detail elsewhere in the
+          prompt. Character and setting names you type here get automatically swapped for their
+          <code>&lt;Subject N&gt;</code> tags. The reference-type bracket (e.g.
+          <code>[reference generation + audio reference]</code>) is added automatically too --
+          just write the plain premise.
+        </p>
+        <textarea name="summary_premise" id="scene-summary-premise"
+          placeholder="e.g. Grant confronts Zara in the corridor after discovering the breach."></textarea>
+        <div id="summary-premise-counter" class="char-counter">0 / 250</div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">Visual style opening (prepended before Shot 1)</label>
+        <select name="style_preset" id="scene-style-select"></select>
+        <input type="text" name="style_text" id="scene-style-custom" placeholder="Describe the visual style (lighting, color palette, camera feel)" style="display:none">
+      </div>
+
+      <textarea name="non_diegetic_music" placeholder="Background score description (non_diegetic_music), audible only to the audience"></textarea>
+      <button type="submit">Save Scene</button>
+    </form>
+    <div id="scene-list" class="entity-list"></div>
+
+    <div id="scene-detail" style="display:none">
+      <h3 id="scene-detail-title"></h3>
+      <div id="scene-detail-info" class="scene-info"></div>
+      <form id="sequence-form" class="entity-form">
+        <input type="number" name="duration" min="5" max="10" step="0.5" value="8" placeholder="Duration (5-10s)">
+        <button type="submit">Add Sequence</button>
+      </form>
+      <div id="sequence-list"></div>
+    </div>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

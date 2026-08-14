@@ -1,0 +1,17 @@
+{
+  "id": "char_f4316170",
+  "name": "Dwight Schrute",
+  "face_image": "dwight.png",
+  "voice_audio": "",
+  "attire_options": [
+    {
+      "id": "attire_ec230685",
+      "label": "Starfleet Chief of Security Uniform",
+      "image_path": "dwight_attire.png",
+      "description": "",
+      "is_default": true
+    }
+  ],
+  "appearance_description": "",
+  "properties": {}
+}

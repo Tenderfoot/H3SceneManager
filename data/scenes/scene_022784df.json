@@ -1,0 +1,83 @@
+{
+  "id": "scene_022784df",
+  "name": "Discussing The Holodeck",
+  "setting_id": "set_d560433c",
+  "character_castings": [
+    {
+      "character_id": "char_4a9859be",
+      "attire_id": "attire_e6e100a0"
+    },
+    {
+      "character_id": "char_f4316170",
+      "attire_id": "attire_ec230685"
+    }
+  ],
+  "non_diegetic_music": "N/A",
+  "summary_premise": "Michael walks down a corridor, meets with Dwight, and they continue to walk together while discussing a holodeck issue.",
+  "style_preset": "custom",
+  "style_opening": "In the style of Star Trek: The Next Generation",
+  "sequences": [
+    {
+      "id": "seq_4ab91279",
+      "index": 0,
+      "duration": 5.0,
+      "beats": [
+        {
+          "id": "beat_d4af4221",
+          "kind": "action",
+          "text": "Michael walks down a starship corridor, headed toward a turbo lift. Dwight is behind him, walking at an increased pace to catch up. Once Dwight catches up to Michael, Dwight matches his pace and addresses him.",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "timestamp": ""
+        },
+        {
+          "id": "beat_c00ce499",
+          "kind": "dialogue",
+          "text": "",
+          "character_id": "char_f4316170",
+          "line": "Captain.",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "timestamp": ""
+        }
+      ],
+      "status": "rendered",
+      "output_video_path": "00_seq_4ab91279_00008_.mp4"
+    },
+    {
+      "id": "seq_4aa2255f",
+      "index": 1,
+      "duration": 5.0,
+      "beats": [
+        {
+          "id": "beat_e3b3744d",
+          "kind": "dialogue",
+          "text": "",
+          "character_id": "char_4a9859be",
+          "line": "I hear there is a problem with the hollowdeck",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "timestamp": ""
+        },
+        {
+          "id": "beat_43369cbc",
+          "kind": "action",
+          "text": "Dwight listens attentively",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "timestamp": ""
+        }
+      ],
+      "status": "generated",
+      "output_video_path": ""
+    }
+  ]
+}
