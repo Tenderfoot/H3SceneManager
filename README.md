@@ -1,6 +1,4 @@
-# H3SceneManager
-
-![Scene Forge screenshot](screenshot.png)
+# Scene Forge
 
 A local web app for authoring multi-character, multi-shot video/audio scenes and compiling them into correctly-wired [ComfyUI](https://github.com/comfyanonymous/ComfyUI) workflows for **MiniMax H3 (Ref2VA checkpoint)**.
 
@@ -23,7 +21,14 @@ From there you can either download the workflow JSON to run in ComfyUI yourself,
 - **MiniMax's prompt format is fiddly to write correctly by hand.** Consistent subject numbering, tag citations, first-appearance-only descriptions, and (for Ref2VA specifically) the six-section rewrite-guide structure are easy to get subtly wrong, and subtle formatting mistakes are hard to notice just by reading the prompt back.
 - **Multi-shot continuity needs bookkeeping.** Chaining a sequence's last frame into the next one, and keeping character/location identity consistent shot-to-shot, is exactly the kind of detail that's easy to lose track of when you're doing it by hand across a dozen shots.
 - **Running a whole scene means a lot of manual queue-and-wait.** Without automation, rendering an N-sequence scene means manually submitting each one to ComfyUI, waiting for it to finish, finding the output file, and feeding its path into the next sequence — N times. Scene Forge's **Run Scene** does this in one click, with live per-sequence progress.
-- **Fast iteration on what actually works.** Prompt format, resolution, and seed are all things worth A/B-testing empirically rather than trusting the docs blindly — Scene Forge makes format and seed a per-generation choice rather than something baked into saved data, so you can compare results shot-to-shot without re-entering anything.
+- **Fast iteration on what actually works.** Prompt format, resolution, and seed are all things worth A/B-testing empirically rather than trusting the docs blindly (see [Empirical findings](#empirical-findings) below) — Scene Forge makes format and seed a per-generation choice rather than something baked into saved data, so you can compare results shot-to-shot without re-entering anything.
+
+## What are the alternatives?
+
+- **Editing the workflow graph directly in ComfyUI's own UI.** Works fine for a single shot or a quick test, but doesn't scale — no memory of who your characters/locations are across scenes, and duplicating/rewiring character groups by hand for every new shot gets old fast.
+- **Writing prompts by hand outside any tool**, tracking continuity and character descriptions yourself in a notes doc, and manually queueing each render in ComfyUI. This is the "no tooling" baseline Scene Forge exists to replace.
+- **Building your own automation directly against ComfyUI's API**, without any of the structured character/location/scene modeling. You'd end up rebuilding a fair chunk of what Scene Forge already does.
+- As far as I'm aware, there isn't an existing purpose-built tool for MiniMax H3 Ref2VA scene/prompt authoring specifically — this project exists because nothing like it did.
 
 ---
 

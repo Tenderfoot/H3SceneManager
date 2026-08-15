@@ -1,1 +1,2 @@
-requirements: flask
+flask
+websocket-client
