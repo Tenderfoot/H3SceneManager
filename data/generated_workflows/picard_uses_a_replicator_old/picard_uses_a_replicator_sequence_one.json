@@ -1,8 +1,8 @@
 {
   "id": "e3f2b845-8f2c-4b5a-9caf-eac1029d3e7e",
   "revision": 0,
-  "last_node_id": 154,
-  "last_link_id": 303,
+  "last_node_id": 152,
+  "last_link_id": 301,
   "nodes": [
     {
       "id": 120,
@@ -523,7 +523,7 @@
       ],
       "properties": {},
       "widgets_values": [
-        "video/scene_22ac7963/00_seq_cdda657f",
+        "picard_uses_a_replicator/picard_uses_a_replicator_1",
         "auto",
         "auto"
       ]
@@ -557,12 +557,12 @@
           "links": null
         }
       ],
-      "title": "Setting: Starship Bridge",
+      "title": "Location: Ten Forward",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "tng bridge occupied.png",
+        "tenforward.png",
         "image"
       ]
     },
@@ -629,7 +629,7 @@
           "name": "ref_images.ref_image_4",
           "shape": 7,
           "type": "IMAGE",
-          "link": 302
+          "link": null
         },
         {
           "label": "ref_video_0",
@@ -690,13 +690,6 @@
             "name": "length"
           },
           "link": 275
-        },
-        {
-          "label": "ref_image_5",
-          "name": "ref_images.ref_image_5",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 303
         }
       ],
       "outputs": [
@@ -799,7 +792,7 @@
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "The bridge crew is present when Jean-Luc goes off the rails.\n\nThe target video is in a cinematic, literary style with soft lighting and a slightly desaturated color palette.\n\nintegrated_multimodal_description:\n[Shot 1] A shot establishes the Starship Bridge shown in <Picture 1>, preserving A starship bridge.. Jean-Luc Picard, shown in <Picture 2> appears. William T. Riker, shown in <Picture 3> appears. Deanna Troi, shown in <Picture 5> appears. Jean-Luc is standing in the middle of the bridge on the starship Enterprise. He casually, lazily falls back into his Captains chair. On either side of him is William T. Riker and Deanna Troi.\n[Shot 2] Jean-Luc Picard (S1) says in an amused, teasing tone: <d>[English] Computer. Put some Tits On screen!</d>\n[Shot 3] William T. Riker (S2) says in a confident, assertive tone: <d>[English] Belay that order. Captain what has gotten into you?</d>\n[Shot 4] Deanna Troi (S3) says: <d>[English] I sense an alien presence interfering with him</d>\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A"
+        "Jean-Luc Picard gets help ordering from a replicator.\n\nintegrated_multimodal_description:\n[Shot 1] A shot establishes the Ten Forward shown in <Picture 1>, preserving The crew bar aboard the starship Enterprise.. Captain Picard of the starship enterprise is in Ten Forward. He walks up to a replicator.\n[Shot 2] Jean-Luc Picard, shown in <Picture 2> appears. Jean-Luc Picard (S1) says: <d>[English] Computer, one sports drink, blue.</d>\n[Shot 3] The computer responds with error beeps followed by <d>[English] Error - blue is not a flavor</d>\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A"
       ],
       "color": "#322",
       "bgcolor": "#533"
@@ -958,12 +951,12 @@
           "links": null
         }
       ],
-      "title": "Face: William T. Riker",
+      "title": "Face: Michael Scott",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "rikerface.png",
+        "michael scott.png",
         "image"
       ]
     },
@@ -971,15 +964,15 @@
       "id": 152,
       "type": "LoadImage",
       "pos": [
-        -1411.2044098763213,
-        4221.375160838343
+        -1872.718137869574,
+        4225.682491880535
       ],
       "size": [
         290,
         330
       ],
       "flags": {},
-      "order": 7,
+      "order": 13,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -994,84 +987,12 @@
           "links": null
         }
       ],
-      "title": "Face: Worf",
+      "title": "Attire: Michael Scott (Starfleet Captain Uniform)",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "worf.png",
-        "image"
-      ]
-    },
-    {
-      "id": 153,
-      "type": "LoadImage",
-      "pos": [
-        -592.7539284224076,
-        4221.375160838343
-      ],
-      "size": [
-        290,
-        330
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": []
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "title": "Face: Deanna Troi",
-      "properties": {
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "troiface.png",
-        "image"
-      ]
-    },
-    {
-      "id": 154,
-      "type": "LoadImage",
-      "pos": [
-        225.69655303150603,
-        4221.375160838343
-      ],
-      "size": [
-        290,
-        330
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": []
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "title": "Face: Geordi La Forge",
-      "properties": {
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "geordiface.png",
+        "michael_attire.png",
         "image"
       ]
     }
@@ -1292,22 +1213,6 @@
       136,
       6,
       "IMAGE"
-    ],
-    [
-      302,
-      153,
-      0,
-      136,
-      7,
-      "IMAGE"
-    ],
-    [
-      303,
-      154,
-      0,
-      136,
-      16,
-      "IMAGE"
     ]
   ],
   "groups": [
@@ -1385,45 +1290,9 @@
     },
     {
       "id": 8,
-      "title": "Character (William T. Riker)",
+      "title": "Character (Michael Scott)",
       "bounding": [
         -2268.5746122767646,
-        4124.857593177093,
-        738.4504814539137,
-        695.6445574329528
-      ],
-      "color": "#3f789e",
-      "flags": {}
-    },
-    {
-      "id": 9,
-      "title": "Character (Worf)",
-      "bounding": [
-        -1450.124130822851,
-        4124.857593177093,
-        738.4504814539137,
-        695.6445574329528
-      ],
-      "color": "#3f789e",
-      "flags": {}
-    },
-    {
-      "id": 10,
-      "title": "Character (Deanna Troi)",
-      "bounding": [
-        -631.6736493689373,
-        4124.857593177093,
-        738.4504814539137,
-        695.6445574329528
-      ],
-      "color": "#3f789e",
-      "flags": {}
-    },
-    {
-      "id": 11,
-      "title": "Character (Geordi La Forge)",
-      "bounding": [
-        186.77683208497638,
         4124.857593177093,
         738.4504814539137,
         695.6445574329528

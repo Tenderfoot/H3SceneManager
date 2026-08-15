@@ -1,7 +1,7 @@
 {
   "id": "e3f2b845-8f2c-4b5a-9caf-eac1029d3e7e",
   "revision": 0,
-  "last_node_id": 151,
+  "last_node_id": 150,
   "last_link_id": 300,
   "nodes": [
     {
@@ -523,7 +523,7 @@
       ],
       "properties": {},
       "widgets_values": [
-        "video/scene_3d5614a9/00_seq_b17477d8",
+        "brand_new_scene/brand_new_scene_2",
         "auto",
         "auto"
       ]
@@ -557,7 +557,7 @@
           "links": null
         }
       ],
-      "title": "Setting: Turbolift",
+      "title": "Location: Turbolift",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
@@ -792,7 +792,7 @@
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "Worf and Geordi discuss family in a turbolift.\n\nThe target video is in a cinematic, literary style with soft lighting and a slightly desaturated color palette.\n\nintegrated_multimodal_description:\n[Shot 1] A shot establishes the Turbolift shown in <Picture 1>, preserving a starship elevator.. Geordi La Forge, shown in <Picture 2> appears. Worf, shown in <Picture 3> appears. Geordi and Worf stand in a turbolift. Geordi turns to ask something to Worf.\n[Shot 2] Geordi La Forge (S1) says: <d>[English] Have you been spending time with Alexander?</d>\n[Shot 3] Worf (S2) says: <d>[English] Too much. Its hard being a father, some kids really cling on.</d>\n[Shot 4] Geordi starts sniggering. Worf shoots him an angry look\n\noverall_soundscape:\nstarship elevator gentle hum\n\nnon_diegetic_music:\nN/A"
+        "For the target video, at 0.00 seconds into the target video, <Picture 2> (from [Shot 1]) is fully referenced.\n\nBeverly Crusher heats up in a stalled turbo lift.\n\nintegrated_multimodal_description:\n[Shot 1] A shot establishes the Turbolift shown in <Picture 1>, preserving a starship elevator.. Beverly Crusher, shown in <Picture 3> appears. Beverly Crusher is in a turbolift which has stalled and stopped with the doors shut on the starship enterprise. she continues to remove her clothing until she is in her bra and underwear. Once she is in her underwear, the stalled turbolift starts up again. Beverly Crusher panics and picks up her clothes from the floor, and covers herself.\n\noverall_soundscape:\nstarship elevator gentle hum\n\nnon_diegetic_music:\nN/A"
       ],
       "color": "#322",
       "bgcolor": "#533"
@@ -889,6 +889,50 @@
       ]
     },
     {
+      "id": 148,
+      "type": "FirstFrameLastFrameExtractor",
+      "pos": [
+        -2884.6077073141305,
+        3403.357782913893
+      ],
+      "size": [
+        351.375,
+        114
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "first_frame",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "last_frame",
+          "type": "IMAGE",
+          "links": [
+            294
+          ]
+        }
+      ],
+      "title": "{{ Previous Video Final Frame }}",
+      "properties": {
+        "Node name for S&R": "FirstFrameLastFrameExtractor"
+      },
+      "widgets_values": [
+        "C:\\Users\\grant\\OneDrive\\Desktop\\comfyui\\ComfyUI\\output\\brand_new_scene\\brand_new_scene_1_00001_.mp4"
+      ]
+    },
+    {
       "id": 150,
       "type": "LoadImage",
       "pos": [
@@ -915,48 +959,12 @@
           "links": null
         }
       ],
-      "title": "Face: Geordi La Forge",
+      "title": "Face: Beverly Crusher",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "geordiface.png",
-        "image"
-      ]
-    },
-    {
-      "id": 151,
-      "type": "LoadImage",
-      "pos": [
-        -2229.654891330235,
-        4221.375160838343
-      ],
-      "size": [
-        290,
-        330
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": []
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "title": "Face: Worf",
-      "properties": {
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "worf.png",
+        "crusherface.png",
         "image"
       ]
     }
@@ -1156,15 +1164,15 @@
     ],
     [
       299,
-      150,
-      0,
+      148,
+      1,
       136,
       4,
       "IMAGE"
     ],
     [
       300,
-      151,
+      150,
       0,
       136,
       5,
@@ -1234,21 +1242,9 @@
     },
     {
       "id": 7,
-      "title": "Character (Geordi La Forge)",
+      "title": "Character (Beverly Crusher)",
       "bounding": [
         -3087.0250937306782,
-        4124.857593177093,
-        738.4504814539137,
-        695.6445574329528
-      ],
-      "color": "#3f789e",
-      "flags": {}
-    },
-    {
-      "id": 8,
-      "title": "Character (Worf)",
-      "bounding": [
-        -2268.5746122767646,
         4124.857593177093,
         738.4504814539137,
         695.6445574329528

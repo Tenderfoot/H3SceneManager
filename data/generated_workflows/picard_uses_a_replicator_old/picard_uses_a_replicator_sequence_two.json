@@ -1,8 +1,8 @@
 {
   "id": "e3f2b845-8f2c-4b5a-9caf-eac1029d3e7e",
   "revision": 0,
-  "last_node_id": 152,
-  "last_link_id": 301,
+  "last_node_id": 153,
+  "last_link_id": 303,
   "nodes": [
     {
       "id": 120,
@@ -523,7 +523,7 @@
       ],
       "properties": {},
       "widgets_values": [
-        "video/scene_e2c33956/00_seq_9ab45bc1",
+        "picard_uses_a_replicator/picard_uses_a_replicator_2",
         "auto",
         "auto"
       ]
@@ -557,7 +557,7 @@
           "links": null
         }
       ],
-      "title": "Setting: Ten Forward",
+      "title": "Location: Ten Forward",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
@@ -629,7 +629,7 @@
           "name": "ref_images.ref_image_4",
           "shape": 7,
           "type": "IMAGE",
-          "link": null
+          "link": 303
         },
         {
           "label": "ref_video_0",
@@ -650,7 +650,7 @@
           "name": "ref_audios.ref_audio_0",
           "shape": 7,
           "type": "AUDIO",
-          "link": null
+          "link": 302
         },
         {
           "label": "ref_audio_1",
@@ -792,7 +792,7 @@
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "Deanna Troi and Data are playing star trek chess in Ten Forward.\n\nThe target video is in a cinematic, literary style with soft lighting and a slightly desaturated color palette.\n\nintegrated_multimodal_description:\n[Shot 1] A shot establishes the Ten Forward shown in <Picture 1>, preserving The crew bar aboard the starship Enterprise.. Data, shown in <Picture 2> appears. Deanna Troi, shown in <Picture 3> appears. Deanna Troi and Data are playing a game of Star Trek Chess. Deanna troi moves a piece, and Data seems impressed.\n[Shot 2] Data (S1) says: <d>[English] Very good Councilor. I'm impressed you were able to best a computer.</d>\n[Shot 3] Deanna Troi (S2) says: <d>[English] chess is not just a game of ploys and gambits, but also a game of intuition.</d>\n[Shot 4] Guinan, shown in <Picture 4> appears. Guinan walks into the scene. She seems to fiddle with something on Data's head.\n[Shot 5] Guinan (S3) says in a dry, sarcastic tone: <d>[English] He was on easy</d>\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A"
+        "subject_definitions:\n<Picture 2> is the first frame of [Shot 1], continuing directly from the end of the previous sequence.\n<Subject 1> is the Ten Forward environment in <Picture 1>, The crew bar aboard the starship Enterprise..\n<Subject 2> is Jean-Luc Picard, appearing in <Picture 3>.\n<Subject 3> is Michael Scott, appearing in <Picture 4> and <Picture 5>.\n<Audio 1> is the voice-timbre reference for <Subject 3> (S1).\n\nsummary:\n[keyframe completion + reference generation + audio reference] <Subject 2> gets help ordering from a replicator.\n\nretention_analysis:\n<Picture 2> ([Shot 1] first frame): fully_preserved - the frame is used unmodified as the exact starting point of this shot.\n<Subject 1> (appears in [Shot 1], [Shot 2]): fully_preserved - the environment's defining features are retained.\n<Subject 2> (appears in [Shot 1]): fully_preserved - the character's identity and appearance are retained.\n<Subject 3> (appears in [Shot 2]): fully_preserved - the character's identity and appearance are retained.\n<Audio 1>: reference - its vocal timbre guides the delivery of <Subject 3> without copying the original signal.\n\ndetailed_description:\nThe target video maintains a consistent, naturalistic visual style matching the established scene.\n[Shot 1] The shot begins from <Picture 2>. The shot establishes <Subject 1>, The crew bar aboard the starship Enterprise.. Captain Picard of the starship enterprise is in <Subject 1>. He is beside a replicator.\n[Shot 2] <Subject 3> (S1) appears in this shot. <Subject 3> from the Office as portrayed by Steve Carell who is also wearing a Captains uniform, walks up to Captain Picard and the replicator. <Subject 3> (S1) says, <d>[English] One sports drink, Blue Blast</d> The replicator generates a blue sports drink which phases into existance. Captain Picard gives <Subject 3> a quizzical look\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A"
       ],
       "color": "#322",
       "bgcolor": "#533"
@@ -889,6 +889,50 @@
       ]
     },
     {
+      "id": 148,
+      "type": "FirstFrameLastFrameExtractor",
+      "pos": [
+        -2884.6077073141305,
+        3403.357782913893
+      ],
+      "size": [
+        351.375,
+        114
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "first_frame",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "last_frame",
+          "type": "IMAGE",
+          "links": [
+            294
+          ]
+        }
+      ],
+      "title": "{{ Previous Video Final Frame }}",
+      "properties": {
+        "Node name for S&R": "FirstFrameLastFrameExtractor"
+      },
+      "widgets_values": [
+        "C:\\Users\\grant\\OneDrive\\Desktop\\comfyui\\ComfyUI\\output\\picard_uses_a_replicator\\picard_uses_a_replicator_1_00001_.mp4"
+      ]
+    },
+    {
       "id": 150,
       "type": "LoadImage",
       "pos": [
@@ -915,12 +959,12 @@
           "links": null
         }
       ],
-      "title": "Face: Data",
+      "title": "Face: Jean-Luc Picard",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "dataface.png",
+        "picard.png",
         "image"
       ]
     },
@@ -951,28 +995,60 @@
           "links": null
         }
       ],
-      "title": "Face: Deanna Troi",
+      "title": "Face: Michael Scott",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "troiface.png",
+        "michael scott.png",
         "image"
       ]
     },
     {
       "id": 152,
+      "type": "LoadAudio",
+      "pos": [
+        -2044.245821250579,
+        4612.492037079445
+      ],
+      "size": [
+        282.78125,
+        138
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "AUDIO",
+          "type": "AUDIO",
+          "links": []
+        }
+      ],
+      "title": "Voice: Michael Scott",
+      "properties": {
+        "Node name for S&R": "LoadAudio"
+      },
+      "widgets_values": [
+        "michaelaudio.wav",
+        null,
+        null
+      ]
+    },
+    {
+      "id": 153,
       "type": "LoadImage",
       "pos": [
-        -1411.2044098763213,
-        4221.375160838343
+        -1872.718137869574,
+        4225.682491880535
       ],
       "size": [
         290,
         330
       ],
       "flags": {},
-      "order": 7,
+      "order": 13,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -987,12 +1063,12 @@
           "links": null
         }
       ],
-      "title": "Face: Guinan",
+      "title": "Attire: Michael Scott (Starfleet Captain Uniform)",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "guinanface.png",
+        "michael_attire.png",
         "image"
       ]
     }
@@ -1192,15 +1268,15 @@
     ],
     [
       299,
-      150,
-      0,
+      148,
+      1,
       136,
       4,
       "IMAGE"
     ],
     [
       300,
-      151,
+      150,
       0,
       136,
       5,
@@ -1208,10 +1284,26 @@
     ],
     [
       301,
-      152,
+      151,
       0,
       136,
       6,
+      "IMAGE"
+    ],
+    [
+      302,
+      152,
+      0,
+      136,
+      10,
+      "AUDIO"
+    ],
+    [
+      303,
+      153,
+      0,
+      136,
+      7,
       "IMAGE"
     ]
   ],
@@ -1278,7 +1370,7 @@
     },
     {
       "id": 7,
-      "title": "Character (Data)",
+      "title": "Character (Jean-Luc Picard)",
       "bounding": [
         -3087.0250937306782,
         4124.857593177093,
@@ -1290,21 +1382,9 @@
     },
     {
       "id": 8,
-      "title": "Character (Deanna Troi)",
+      "title": "Character (Michael Scott)",
       "bounding": [
         -2268.5746122767646,
-        4124.857593177093,
-        738.4504814539137,
-        695.6445574329528
-      ],
-      "color": "#3f789e",
-      "flags": {}
-    },
-    {
-      "id": 9,
-      "title": "Character (Guinan)",
-      "bounding": [
-        -1450.124130822851,
         4124.857593177093,
         738.4504814539137,
         695.6445574329528

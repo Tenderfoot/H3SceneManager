@@ -1,11 +1,15 @@
 import json
 import os
-from flask import Flask, request, jsonify, send_from_directory
+import re
+import threading
+import time
+from flask import Flask, request, jsonify, send_from_directory, send_file
 
-from engine.models import Character, Setting, Sequence, Scene, Beat, AttireOption, CharacterCasting, new_id
+from engine.models import Character, Location, Sequence, Scene, Beat, AttireOption, CharacterCasting, new_id
 from engine.storage import JsonStore
 from engine.template_engine import generate_sequence_workflow, TemplateEngineError
 from engine.prompt_compiler import DELIVERY_PRESETS, STYLE_PRESETS
+from engine.comfy_client import ComfyClient, ComfyClientError
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -13,10 +17,78 @@ TEMPLATE_PATH = os.path.join(DATA_DIR, "templates", "Grant_Template_Workflow.jso
 OUTPUT_DIR = os.path.join(DATA_DIR, "generated_workflows")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+# ---------- ComfyUI connection config: persisted to data/config.json,
+# editable at runtime from the Config tab (no restart needed). Env vars
+# only seed the file's initial defaults the very first time it's created --
+# after that, the file on disk is the source of truth. ----------
+CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
+DEFAULT_CONFIG = {
+    "comfyui_url": os.environ.get("COMFYUI_URL", "http://127.0.0.1:8188"),
+    # Must point at the SAME directory ComfyUI itself writes rendered output
+    # to -- Scene Forge needs to read it directly to confirm a render landed
+    # and record its real path for chaining into the next sequence.
+    "comfyui_output_dir": os.environ.get("COMFYUI_OUTPUT_DIR", os.path.expanduser("~/ComfyUI/output")),
+    # ComfyUI's input/ directory -- where reference images/audio (character
+    # faces, attire, voice clips, location photos) typically live so LoadImage/
+    # LoadAudio nodes can find them. Scene Forge doesn't read/write this
+    # directory itself; it's just where you'd browse from when picking a
+    # reference file path for a character or location.
+    "comfyui_input_dir": os.environ.get("COMFYUI_INPUT_DIR", os.path.expanduser("~/ComfyUI/input")),
+    "poll_interval": float(os.environ.get("COMFYUI_POLL_INTERVAL", "3")),
+    "timeout_seconds": float(os.environ.get("COMFYUI_TIMEOUT_SECONDS", "1800")),
+}
+
+
+def _load_config_from_disk():
+    if os.path.isfile(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH) as f:
+                on_disk = json.load(f)
+            return {**DEFAULT_CONFIG, **{k: v for k, v in on_disk.items() if k in DEFAULT_CONFIG}}
+        except (json.JSONDecodeError, OSError):
+            pass  # corrupt/unreadable file -- fall back to defaults rather than crash on startup
+    return dict(DEFAULT_CONFIG)
+
+
+# In-memory cache, single source of truth while the process is running --
+# read by the config endpoints AND the background scene-run job, so it's
+# guarded by a lock the same way SCENE_RUNS is below.
+CONFIG = _load_config_from_disk()
+CONFIG_LOCK = threading.Lock()
+
+
+def get_config():
+    with CONFIG_LOCK:
+        return dict(CONFIG)
+
+
+def save_config(updates):
+    with CONFIG_LOCK:
+        CONFIG.update(updates)
+        with open(CONFIG_PATH, "w") as f:
+            json.dump(CONFIG, f, indent=2)
+        return dict(CONFIG)
+
+
+# In-memory job tracking for scene run-throughs (see "scene run" section
+# near the bottom). Single-process/single-user local app, so a plain dict
+# behind a lock is enough -- no need for a job queue or persistence.
+SCENE_RUNS = {}
+SCENE_RUNS_LOCK = threading.Lock()
+
 app = Flask(__name__, static_folder="static", static_url_path="")
 
+# One-time migration: earlier versions stored this data under data/settings/
+# (back when "Location" was called "Setting"). If that folder still exists
+# and the new one doesn't, just rename it in place so nothing on disk from
+# before this rename gets silently orphaned.
+LOCATIONS_DIR = os.path.join(DATA_DIR, "locations")
+_legacy_settings_dir = os.path.join(DATA_DIR, "settings")
+if os.path.isdir(_legacy_settings_dir) and not os.path.isdir(LOCATIONS_DIR):
+    os.rename(_legacy_settings_dir, LOCATIONS_DIR)
+
 characters = JsonStore(os.path.join(DATA_DIR, "characters"), Character)
-settings = JsonStore(os.path.join(DATA_DIR, "settings"), Setting)
+locations = JsonStore(LOCATIONS_DIR, Location)
 scenes = JsonStore(os.path.join(DATA_DIR, "scenes"), Scene)
 
 
@@ -25,10 +97,176 @@ def load_template():
         return json.load(f)
 
 
+# ---------- filesystem-safe naming for generated workflow output ----------
+_ORDINAL_WORDS = [
+    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+    "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen",
+    "eighteen", "nineteen", "twenty",
+]
+
+
+def _sequence_word(index):
+    """0-based sequence index -> spelled-out ordinal ('one', 'two', ...),
+    falling back to a plain number past the word list."""
+    if 0 <= index < len(_ORDINAL_WORDS):
+        return _ORDINAL_WORDS[index]
+    return str(index + 1)
+
+
+def slugify(name):
+    """Lowercase, filesystem-safe slug for a scene/character/location name.
+    Falls back to 'untitled' if nothing usable is left after stripping."""
+    slug = re.sub(r"[^a-z0-9]+", "_", (name or "").strip().lower()).strip("_")
+    return slug or "untitled"
+
+
+def scene_output_dir(scene):
+    """Directory (under OUTPUT_DIR) for this scene's generated workflows,
+    named after the scene rather than its id. If another scene already
+    claimed the same slug, disambiguate with a short id suffix so the two
+    scenes' outputs never collide or overwrite one another."""
+    base_slug = slugify(scene.name)
+    marker_name = ".scene_id"
+
+    def _claim(slug):
+        path = os.path.join(OUTPUT_DIR, slug)
+        marker_path = os.path.join(path, marker_name)
+        if os.path.isdir(path):
+            if os.path.isfile(marker_path):
+                with open(marker_path) as f:
+                    owner_id = f.read().strip()
+                if owner_id and owner_id != scene.id:
+                    return None  # slug is taken by a different scene
+            # existing folder with no marker (e.g. pre-existing/manual) or
+            # already owned by this scene -- safe to reuse
+        os.makedirs(path, exist_ok=True)
+        if not os.path.isfile(marker_path):
+            with open(marker_path, "w") as f:
+                f.write(scene.id)
+        return path
+
+    claimed = _claim(base_slug)
+    if claimed is not None:
+        return claimed
+    # collision with a different scene's slug -- disambiguate with the scene's
+    # own id, which by construction can't collide with anything else
+    return _claim(f"{base_slug}_{scene.id[:8]}")
+
+
+def _sequence_workflow_path(scene, sequence):
+    """Where a sequence's generated workflow JSON gets written on disk."""
+    scene_out_dir = scene_output_dir(scene)
+    scene_slug = os.path.basename(scene_out_dir)
+    return os.path.join(scene_out_dir, f"{scene_slug}_sequence_{_sequence_word(sequence.index)}.json")
+
+
+class SceneGenerationError(Exception):
+    """User-facing error for problems found while assembling generation
+    context for a scene (missing location/character/attire, etc.) -- shared
+    by the manual /generate endpoint and the background scene-run job."""
+
+
+def _gather_scene_generation_context(scene):
+    location = locations.load(scene.location_id)
+    if not location:
+        raise SceneGenerationError("scene has no valid location")
+
+    scene_characters = []
+    attire_by_char_id = {}
+    for casting in scene.character_castings:
+        character = characters.load(casting.character_id)
+        if character is None:
+            raise SceneGenerationError(f"scene references a missing character '{casting.character_id}'")
+        scene_characters.append(character)
+        if casting.attire_id:
+            chosen = next((a for a in character.attire_options if a.id == casting.attire_id), None)
+            if chosen is None:
+                raise SceneGenerationError(
+                    f"attire '{casting.attire_id}' not found for character '{character.name}'")
+        else:
+            chosen = character.default_attire()
+        attire_by_char_id[character.id] = chosen
+
+    return location, scene_characters, attire_by_char_id
+
+
 # ---------- static frontend ----------
 @app.route("/")
 def index():
     return send_from_directory(app.static_folder, "index.html")
+
+
+# ---------- config (ComfyUI connection settings) ----------
+@app.route("/api/config", methods=["GET"])
+def get_config_route():
+    return jsonify(get_config())
+
+
+@app.route("/api/config", methods=["PUT"])
+def update_config_route():
+    data = request.json or {}
+    updates = {}
+
+    if "comfyui_url" in data:
+        url = str(data["comfyui_url"]).strip()
+        if not url:
+            return jsonify({"error": "ComfyUI URL cannot be empty"}), 400
+        updates["comfyui_url"] = url
+
+    if "comfyui_output_dir" in data:
+        path = str(data["comfyui_output_dir"]).strip()
+        if not path:
+            return jsonify({"error": "ComfyUI output directory cannot be empty"}), 400
+        updates["comfyui_output_dir"] = path
+
+    if "comfyui_input_dir" in data:
+        path = str(data["comfyui_input_dir"]).strip()
+        if not path:
+            return jsonify({"error": "ComfyUI input directory cannot be empty"}), 400
+        updates["comfyui_input_dir"] = path
+
+    if "poll_interval" in data:
+        try:
+            val = float(data["poll_interval"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "poll interval must be a number"}), 400
+        if val <= 0:
+            return jsonify({"error": "poll interval must be greater than 0"}), 400
+        updates["poll_interval"] = val
+
+    if "timeout_seconds" in data:
+        try:
+            val = float(data["timeout_seconds"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "timeout must be a number"}), 400
+        if val <= 0:
+            return jsonify({"error": "timeout must be greater than 0"}), 400
+        updates["timeout_seconds"] = val
+
+    if not updates:
+        return jsonify({"error": "no valid fields provided"}), 400
+
+    return jsonify(save_config(updates))
+
+
+# ---------- media: serve local reference images/audio by path ----------
+# Character/Location reference fields (face_image, attire images, reference_image,
+# voice_audio) are typically just a bare filename -- the same convention
+# ComfyUI's own LoadImage/LoadAudio nodes use, where a plain filename means
+# "relative to ComfyUI's input/ directory", not relative to Scene Forge.
+# A full absolute path still works too, for anyone who typed one. Browsers
+# can't load either directly in <img>/<audio> tags, so this reads the file
+# off disk and serves it over HTTP for the frontend to display.
+@app.route("/api/media")
+def serve_media():
+    path = request.args.get("path", "")
+    if not path:
+        return jsonify({"error": "path is required"}), 400
+    if not os.path.isabs(path):
+        path = os.path.join(get_config()["comfyui_input_dir"], path)
+    if not os.path.isfile(path):
+        return jsonify({"error": "file not found"}), 404
+    return send_file(path)
 
 
 def _parse_attire_options(raw_list):
@@ -104,16 +342,16 @@ def delete_character(cid):
     return "", 204
 
 
-# ---------- settings ----------
-@app.route("/api/settings", methods=["GET"])
-def list_settings():
-    return jsonify([s.to_dict() for s in settings.list_all()])
+# ---------- locations ----------
+@app.route("/api/locations", methods=["GET"])
+def list_locations():
+    return jsonify([loc.to_dict() for loc in locations.list_all()])
 
 
-@app.route("/api/settings", methods=["POST"])
-def create_setting():
+@app.route("/api/locations", methods=["POST"])
+def create_location():
     data = request.json
-    s = Setting.create(
+    loc = Location.create(
         name=data["name"],
         reference_image=data.get("reference_image", ""),
         category=data.get("category", ""),
@@ -121,29 +359,29 @@ def create_setting():
         soundscape_description=data.get("soundscape_description", ""),
         properties=data.get("properties", {}),
     )
-    settings.save(s)
-    return jsonify(s.to_dict()), 201
+    locations.save(loc)
+    return jsonify(loc.to_dict()), 201
 
 
-@app.route("/api/settings/<sid>", methods=["PUT"])
-def update_setting(sid):
-    existing = settings.load(sid)
+@app.route("/api/locations/<lid>", methods=["PUT"])
+def update_location(lid):
+    existing = locations.load(lid)
     if not existing:
         return jsonify({"error": "not found"}), 404
     data = request.json
-    updated = Setting(id=sid, name=data.get("name", existing.name),
-                       reference_image=data.get("reference_image", existing.reference_image),
-                       category=data.get("category", existing.category),
-                       visual_description=data.get("visual_description", existing.visual_description),
-                       soundscape_description=data.get("soundscape_description", existing.soundscape_description),
-                       properties=data.get("properties", existing.properties))
-    settings.save(updated)
+    updated = Location(id=lid, name=data.get("name", existing.name),
+                        reference_image=data.get("reference_image", existing.reference_image),
+                        category=data.get("category", existing.category),
+                        visual_description=data.get("visual_description", existing.visual_description),
+                        soundscape_description=data.get("soundscape_description", existing.soundscape_description),
+                        properties=data.get("properties", existing.properties))
+    locations.save(updated)
     return jsonify(updated.to_dict())
 
 
-@app.route("/api/settings/<sid>", methods=["DELETE"])
-def delete_setting(sid):
-    settings.delete(sid)
+@app.route("/api/locations/<lid>", methods=["DELETE"])
+def delete_location(lid):
+    locations.delete(lid)
     return "", 204
 
 
@@ -168,13 +406,12 @@ def create_scene():
         return jsonify({"error": err}), 400
     scene = Scene.create(
         name=data["name"],
-        setting_id=data.get("setting_id", ""),
+        location_id=data.get("location_id", ""),
         character_castings=_parse_castings(data.get("character_castings", [])),
         non_diegetic_music=data.get("non_diegetic_music", ""),
         summary_premise=data.get("summary_premise", ""),
         style_preset=style_preset,
         style_opening=style_opening,
-        prompt_format=data.get("prompt_format", "lean"),
     )
     scenes.save(scene)
     return jsonify(scene.to_dict()), 201
@@ -199,14 +436,13 @@ def update_scene(scid):
     if err:
         return jsonify({"error": err}), 400
     existing.name = data.get("name", existing.name)
-    existing.setting_id = data.get("setting_id", existing.setting_id)
+    existing.location_id = data.get("location_id", existing.location_id)
     if "character_castings" in data:
         existing.character_castings = _parse_castings(data["character_castings"])
     existing.non_diegetic_music = data.get("non_diegetic_music", existing.non_diegetic_music)
     existing.summary_premise = data.get("summary_premise", existing.summary_premise)
     existing.style_preset = style_preset
     existing.style_opening = style_opening
-    existing.prompt_format = data.get("prompt_format", existing.prompt_format)
     scenes.save(existing)
     return jsonify(existing.to_dict())
 
@@ -316,6 +552,13 @@ def _resolve_style(data, fallback_preset="", fallback_opening=""):
                             fallback_preset, fallback_opening)
 
 
+def _normalize_shot_fields(is_new_shot, timestamp):
+    """A beat may only carry a timestamp if it starts a new shot -- a beat
+    that folds into the previous shot has no [Shot N] header of its own to
+    attach one to, so its timestamp is always cleared."""
+    return timestamp if is_new_shot else ""
+
+
 
 # ---------- beats (nested under a sequence) ----------
 @app.route("/api/scenes/<scid>/sequences/<seqid>/beats", methods=["POST"])
@@ -344,6 +587,8 @@ def add_beat(scid, seqid):
 
     for seq in scene.sequences:
         if seq.id == seqid:
+            is_first = len(seq.beats) == 0
+            is_new_shot = True if is_first else bool(data.get("is_new_shot", True))
             beat = Beat.create(
                 kind,
                 text=data.get("text", ""),
@@ -352,7 +597,8 @@ def add_beat(scid, seqid):
                 language=data.get("language", "English"),
                 delivery_preset=delivery_preset,
                 delivery=delivery,
-                timestamp=data.get("timestamp", ""),
+                is_new_shot=is_new_shot,
+                timestamp=_normalize_shot_fields(is_new_shot, data.get("timestamp", "")),
             )
             seq.beats.append(beat)
             scenes.save(scene)
@@ -372,7 +618,7 @@ def update_beat(scid, seqid, beatid):
     for seq in scene.sequences:
         if seq.id != seqid:
             continue
-        for beat in seq.beats:
+        for idx, beat in enumerate(seq.beats):
             if beat.id != beatid:
                 continue
             kind = data.get("kind", beat.kind)
@@ -387,6 +633,9 @@ def update_beat(scid, seqid, beatid):
             if err:
                 return jsonify({"error": err}), 400
 
+            is_first = idx == 0
+            is_new_shot = True if is_first else bool(data.get("is_new_shot", beat.is_new_shot))
+
             beat.kind = kind
             beat.text = data.get("text", beat.text)
             beat.character_id = character_id
@@ -394,7 +643,8 @@ def update_beat(scid, seqid, beatid):
             beat.language = data.get("language", beat.language)
             beat.delivery_preset = delivery_preset
             beat.delivery = delivery
-            beat.timestamp = data.get("timestamp", beat.timestamp)
+            beat.is_new_shot = is_new_shot
+            beat.timestamp = _normalize_shot_fields(is_new_shot, data.get("timestamp", beat.timestamp))
             scenes.save(scene)
             return jsonify(beat.to_dict())
         return jsonify({"error": "beat not found"}), 404
@@ -462,10 +712,12 @@ def bulk_save_sequences(scid):
     new_sequences = []
     for i, raw_seq in enumerate(raw_sequences):
         beats = []
-        for raw_beat in raw_seq.get("beats", []):
+        for bi, raw_beat in enumerate(raw_seq.get("beats", [])):
             delivery_preset, delivery, err = _resolve_delivery(raw_beat)
             if err:
                 return jsonify({"error": err}), 400
+            is_first = bi == 0
+            is_new_shot = True if is_first else bool(raw_beat.get("is_new_shot", True))
             beats.append(Beat(
                 id=raw_beat.get("id") or new_id("beat"),
                 kind=raw_beat.get("kind", "action"),
@@ -475,7 +727,8 @@ def bulk_save_sequences(scid):
                 language=raw_beat.get("language", "English"),
                 delivery_preset=delivery_preset,
                 delivery=delivery,
-                timestamp=raw_beat.get("timestamp", ""),
+                is_new_shot=is_new_shot,
+                timestamp=_normalize_shot_fields(is_new_shot, raw_beat.get("timestamp", "")),
             ))
         new_sequences.append(Sequence(
             id=raw_seq.get("id") or new_id("seq"),
@@ -512,32 +765,32 @@ def resolve_output(scid, seqid):
     return jsonify({"error": "sequence not found"}), 404
 
 
+def _resolve_prompt_format(data):
+    """Reads prompt_format straight off the request body -- it's a per-call
+    choice (from the scene editor's dropdown), not anything stored on the
+    Scene or Sequence model. Defaults to "lean" if omitted."""
+    value = data.get("prompt_format", "lean")
+    if value not in ("lean", "full"):
+        return None, f"prompt_format must be 'lean' or 'full', got {value!r}"
+    return value, None
+
+
 # ---------- generation ----------
 @app.route("/api/scenes/<scid>/sequences/<seqid>/generate", methods=["POST"])
 def generate_sequence(scid, seqid):
     scene = scenes.load(scid)
     if not scene:
         return jsonify({"error": "scene not found"}), 404
-    setting = settings.load(scene.setting_id)
-    if not setting:
-        return jsonify({"error": "scene has no valid setting"}), 400
 
-    scene_characters = []
-    attire_by_char_id = {}
-    for casting in scene.character_castings:
-        character = characters.load(casting.character_id)
-        if character is None:
-            return jsonify({"error": f"scene references a missing character '{casting.character_id}'"}), 400
-        scene_characters.append(character)
-        if casting.attire_id:
-            chosen = next((a for a in character.attire_options if a.id == casting.attire_id), None)
-            if chosen is None:
-                return jsonify({
-                    "error": f"attire '{casting.attire_id}' not found for character '{character.name}'"
-                }), 400
-        else:
-            chosen = character.default_attire()
-        attire_by_char_id[character.id] = chosen
+    data = request.json or {}
+    prompt_format, err = _resolve_prompt_format(data)
+    if err:
+        return jsonify({"error": err}), 400
+
+    try:
+        location, scene_characters, attire_by_char_id = _gather_scene_generation_context(scene)
+    except SceneGenerationError as e:
+        return jsonify({"error": str(e)}), 400
 
     sequence = next((s for s in scene.sequences if s.id == seqid), None)
     if sequence is None:
@@ -560,19 +813,18 @@ def generate_sequence(scid, seqid):
         template = load_template()
         wf, prefix = generate_sequence_workflow(
             template,
-            setting=setting,
+            location=location,
             characters=scene_characters,
             sequence=sequence,
             scene=scene,
             attire_by_char_id=attire_by_char_id,
             previous_output_path=previous_output_path,
+            prompt_format=prompt_format,
         )
     except TemplateEngineError as e:
         return jsonify({"error": str(e)}), 400
 
-    scene_out_dir = os.path.join(OUTPUT_DIR, scid)
-    os.makedirs(scene_out_dir, exist_ok=True)
-    out_path = os.path.join(scene_out_dir, f"{sequence.index:02d}_{sequence.id}.json")
+    out_path = _sequence_workflow_path(scene, sequence)
     with open(out_path, "w") as f:
         json.dump(wf, f, indent=2)
 
@@ -584,6 +836,160 @@ def generate_sequence(scid, seqid):
         "filename_prefix": prefix,
         "sequence": sequence.to_dict(),
     })
+
+
+# ---------- run: submit a whole scene's sequences to ComfyUI in order ----------
+def _new_run_job(scene):
+    return {
+        "state": "running",       # running | done | error | cancelled | none
+        "error": None,
+        "started_at": time.time(),
+        "finished_at": None,
+        "cancel_requested": False,
+        "sequences": [
+            {
+                "id": s.id, "index": s.index,
+                "state": "rendered" if (s.status == "rendered" and s.output_video_path) else "pending",
+                "prompt_id": None,
+                "output_video_path": s.output_video_path or None,
+                "error": None,
+            }
+            for s in sorted(scene.sequences, key=lambda s: s.index)
+        ],
+    }
+
+
+def _run_scene_job(scid, prompt_format):
+    def _touch_job(mutate):
+        with SCENE_RUNS_LOCK:
+            job = SCENE_RUNS.get(scid)
+            if job:
+                mutate(job)
+
+    def _touch_seq(seq_id, **fields):
+        def _mut(job):
+            for entry in job["sequences"]:
+                if entry["id"] == seq_id:
+                    entry.update(fields)
+        _touch_job(_mut)
+
+    def _should_cancel():
+        with SCENE_RUNS_LOCK:
+            job = SCENE_RUNS.get(scid)
+            return bool(job and job.get("cancel_requested"))
+
+    cfg = get_config()
+    client = ComfyClient(cfg["comfyui_url"], cfg["comfyui_output_dir"],
+                          poll_interval=cfg["poll_interval"], timeout_seconds=cfg["timeout_seconds"])
+    cancelled = False
+
+    try:
+        scene = scenes.load(scid)
+        if not scene:
+            raise ComfyClientError("scene disappeared before the run could start")
+
+        location, scene_characters, attire_by_char_id = _gather_scene_generation_context(scene)
+        ordered = sorted(scene.sequences, key=lambda s: s.index)
+
+        previous_output_path = None
+        for sequence in ordered:
+            if sequence.status == "rendered" and sequence.output_video_path:
+                previous_output_path = sequence.output_video_path
+                continue
+
+            if _should_cancel():
+                cancelled = True
+                _touch_seq(sequence.id, state="cancelled")
+                break
+
+            _touch_seq(sequence.id, state="generating")
+            template = load_template()
+            wf, _prefix = generate_sequence_workflow(
+                template, location=location, characters=scene_characters,
+                sequence=sequence, scene=scene, attire_by_char_id=attire_by_char_id,
+                previous_output_path=previous_output_path,
+                prompt_format=prompt_format,
+            )
+            out_path = _sequence_workflow_path(scene, sequence)
+            with open(out_path, "w") as f:
+                json.dump(wf, f, indent=2)
+            sequence.status = "generated"
+            scenes.save(scene)
+
+            _touch_seq(sequence.id, state="converting")
+            api_wf = client.convert_to_api_format(wf)
+
+            _touch_seq(sequence.id, state="queued")
+            prompt_id = client.queue_prompt(api_wf)
+            _touch_seq(sequence.id, state="rendering", prompt_id=prompt_id)
+
+            history_entry = client.wait_for_completion(prompt_id, should_cancel=_should_cancel)
+            output_path = client.find_output_file(history_entry)
+
+            sequence.status = "rendered"
+            sequence.output_video_path = output_path
+            scenes.save(scene)
+            _touch_seq(sequence.id, state="rendered", output_video_path=output_path)
+
+            previous_output_path = output_path
+
+        if cancelled:
+            _touch_job(lambda job: job.update(state="cancelled", finished_at=time.time()))
+        else:
+            _touch_job(lambda job: job.update(state="done", finished_at=time.time()))
+
+    except SceneGenerationError as e:
+        _touch_job(lambda job: job.update(state="error", error=str(e), finished_at=time.time()))
+    except TemplateEngineError as e:
+        _touch_job(lambda job: job.update(state="error", error=str(e), finished_at=time.time()))
+    except ComfyClientError as e:
+        if str(e) == "cancelled":
+            _touch_job(lambda job: job.update(state="cancelled", finished_at=time.time()))
+        else:
+            client.interrupt()
+            _touch_job(lambda job: job.update(state="error", error=str(e), finished_at=time.time()))
+    except Exception as e:  # last-resort guard so a bug never leaves the job stuck "running"
+        _touch_job(lambda job: job.update(state="error", error=f"unexpected error: {e}", finished_at=time.time()))
+
+
+@app.route("/api/scenes/<scid>/run", methods=["POST"])
+def start_scene_run(scid):
+    scene = scenes.load(scid)
+    if not scene:
+        return jsonify({"error": "scene not found"}), 404
+    if not scene.sequences:
+        return jsonify({"error": "scene has no sequences to run"}), 400
+
+    data = request.json or {}
+    prompt_format, err = _resolve_prompt_format(data)
+    if err:
+        return jsonify({"error": err}), 400
+
+    with SCENE_RUNS_LOCK:
+        existing = SCENE_RUNS.get(scid)
+        if existing and existing["state"] == "running":
+            return jsonify({"error": "a render run is already in progress for this scene"}), 409
+        SCENE_RUNS[scid] = _new_run_job(scene)
+
+    threading.Thread(target=_run_scene_job, args=(scid, prompt_format), daemon=True).start()
+    return jsonify({"started": True})
+
+
+@app.route("/api/scenes/<scid>/run/status", methods=["GET"])
+def get_scene_run_status(scid):
+    with SCENE_RUNS_LOCK:
+        job = SCENE_RUNS.get(scid)
+    return jsonify(job or {"state": "none"})
+
+
+@app.route("/api/scenes/<scid>/run/cancel", methods=["POST"])
+def cancel_scene_run(scid):
+    with SCENE_RUNS_LOCK:
+        job = SCENE_RUNS.get(scid)
+        if not job or job["state"] != "running":
+            return jsonify({"error": "no render run is currently in progress for this scene"}), 400
+        job["cancel_requested"] = True
+    return jsonify({"cancel_requested": True})
 
 
 if __name__ == "__main__":

@@ -95,7 +95,7 @@ class Character:
 
 
 @dataclass
-class Setting:
+class Location:
     id: str
     name: str
     reference_image: str = ""   # absolute path to a reference image of the location
@@ -106,15 +106,15 @@ class Setting:
     properties: dict = field(default_factory=dict)  # free-form, anything else
 
     @staticmethod
-    def create(name, **kwargs) -> "Setting":
-        return Setting(id=new_id("set"), name=name, **kwargs)
+    def create(name, **kwargs) -> "Location":
+        return Location(id=new_id("loc"), name=name, **kwargs)
 
     def to_dict(self):
         return asdict(self)
 
     @staticmethod
     def from_dict(d):
-        return Setting(**_known_fields(Setting, d))
+        return Location(**_known_fields(Location, d))
 
 
 @dataclass
@@ -132,10 +132,23 @@ class Beat:
     delivery_preset: str = ""    # used when kind == "dialogue": preset key, or "custom", or ""
     delivery: str = ""           # used when kind == "dialogue": the resolved phrase that
                                   # actually gets woven into the compiled prompt text
+    is_new_shot: bool = True     # whether this beat starts a NEW [Shot N], or folds into
+                                  # the shot started by the beat before it (e.g. an action
+                                  # beat immediately followed by a dialogue beat in the same
+                                  # shot). Defaults True so old data (saved before this field
+                                  # existed) keeps its original "every beat is its own shot"
+                                  # behavior unchanged. A sequence's first beat is always
+                                  # treated as starting shot 1 regardless of this flag --
+                                  # there's no earlier shot for it to fold into.
     timestamp: str = ""          # MM:SS.mmm offset into the sequence where this beat's
-                                  # shot occurs. Ignored for the sequence's first beat
-                                  # (always rendered as plain "[Shot 1]" per the guide).
-                                  # Free text, not validated -- garbage in, garbage out.
+                                  # shot occurs. Only meaningful when is_new_shot is True --
+                                  # a beat that folds into the previous shot has no [Shot N]
+                                  # header of its own to attach a timestamp to, and callers
+                                  # are expected to keep it blank in that case (enforced
+                                  # server-side in app.py, not here). Also ignored for the
+                                  # sequence's first beat (always rendered as plain
+                                  # "[Shot 1]" per the guide). Free text, not validated
+                                  # (ordering, range, or format) -- garbage in, garbage out.
 
     @staticmethod
     def create(kind, **kwargs) -> "Beat":
@@ -189,7 +202,7 @@ class CharacterCasting:
 class Scene:
     id: str
     name: str
-    setting_id: str = ""
+    location_id: str = ""
     character_castings: list = field(default_factory=list)  # list of CharacterCasting
     non_diegetic_music: str = ""   # prose description of background score, if any
     summary_premise: str = ""      # narrative sentence for the guide's `summary:` section
@@ -198,9 +211,6 @@ class Scene:
     style_preset: str = ""         # preset key, or "custom", or "" (no style opening set)
     style_opening: str = ""        # resolved 1-2 sentence visual style, prepended before
                                     # [Shot 1] in detailed_description, per the guide
-    prompt_format: str = "lean"    # "full" (six-section rewrite-guide format) or "lean"
-                                    # (three-field base-guide-style format). See
-                                    # prompt_compiler.compile_prompt / compile_lean_prompt.
     sequences: list = field(default_factory=list)        # list of Sequence
 
     @staticmethod
@@ -217,6 +227,14 @@ class Scene:
         seqs = [Sequence.from_dict(s) if not isinstance(s, Sequence) else s
                 for s in d.get("sequences", [])]
         d["sequences"] = seqs
+
+        # Migrate the old `setting_id` field name (pre-Location-rename) into
+        # `location_id`, so scenes saved before this rename don't lose their
+        # location on next load.
+        if "location_id" not in d and "setting_id" in d:
+            d["location_id"] = d.pop("setting_id")
+        else:
+            d.pop("setting_id", None)
 
         # Migrate the old flat `character_ids` list (pre-attire-casting) into
         # character_castings with no attire preference (resolves to each

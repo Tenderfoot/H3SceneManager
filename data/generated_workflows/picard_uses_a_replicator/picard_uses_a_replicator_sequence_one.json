@@ -1,8 +1,8 @@
 {
   "id": "e3f2b845-8f2c-4b5a-9caf-eac1029d3e7e",
   "revision": 0,
-  "last_node_id": 150,
-  "last_link_id": 299,
+  "last_node_id": 152,
+  "last_link_id": 301,
   "nodes": [
     {
       "id": 120,
@@ -523,7 +523,7 @@
       ],
       "properties": {},
       "widgets_values": [
-        "video/scene_2aa00ea5/00_seq_f41d7aac",
+        "picard_uses_a_replicator/picard_uses_a_replicator_1",
         "auto",
         "auto"
       ]
@@ -557,12 +557,12 @@
           "links": null
         }
       ],
-      "title": "Setting: Starship Bridge",
+      "title": "Location: Ten Forward",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "tng bridge",
+        "tenforward.png",
         "image"
       ]
     },
@@ -615,14 +615,14 @@
           "name": "ref_images.ref_image_2",
           "shape": 7,
           "type": "IMAGE",
-          "link": null
+          "link": 300
         },
         {
           "label": "ref_image_3",
           "name": "ref_images.ref_image_3",
           "shape": 7,
           "type": "IMAGE",
-          "link": null
+          "link": 301
         },
         {
           "label": "ref_image_4",
@@ -792,7 +792,7 @@
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "Jean-Luc Picard is alone on the Enterprise Bridge, and confused.\n\nThe target video is in a cinematic, literary style with soft lighting and a slightly desaturated color palette.\n\nintegrated_multimodal_description:\n[Shot 1] A shot establishes the Starship Bridge shown in <Picture 1>, preserving A starship bridge. There are 3 chairs in the middle of the room. The middle chair is the Captain Jean-Luc Picard. On the right side is usually the ship councilor Deanna Troi. On his left side is usually is his first officer, William T. Riker. the two stations closest to the panel are operated by Data the Android and a nameless starfleet officer. Behind the center of the room, there is a raised platform with a security station, with a gold security officer operating a computer, standing behind the ship councilor.. Jena-Luc picard is in the Captain's chair on the bridge of the Starship Enterprise. He looks around, confused.\n[Shot 2] At 00:04.000, Jean-Luc Picard, shown in <Picture 2> appears. Jean-Luc Picard (S1) says in a suspicious, guarded tone: <d>[English] Where is everyone? Where has everyone gone?</d>\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nquiet hum of a starship"
+        "Jean-Luc Picard gets help ordering from a replicator.\n\nintegrated_multimodal_description:\n[Shot 1] A shot establishes the Ten Forward shown in <Picture 1>, preserving The crew bar aboard the starship Enterprise.. Jean-Luc Picard, shown in <Picture 2> appears. Captain Picard of the starship enterprise is in Ten Forward. He walks up to a replicator. Jean-Luc Picard (S1) says: <d>[English] Computer, one sports drink, blue.</d> The computer responds with error beeps followed by <d>[English] Error - blue is not a flavor</d>  Picard checks behind him\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A"
       ],
       "color": "#322",
       "bgcolor": "#533"
@@ -921,6 +921,78 @@
       },
       "widgets_values": [
         "picard.png",
+        "image"
+      ]
+    },
+    {
+      "id": 151,
+      "type": "LoadImage",
+      "pos": [
+        -2229.654891330235,
+        4221.375160838343
+      ],
+      "size": [
+        290,
+        330
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "Face: Michael Scott",
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "michael scott.png",
+        "image"
+      ]
+    },
+    {
+      "id": 152,
+      "type": "LoadImage",
+      "pos": [
+        -1872.718137869574,
+        4225.682491880535
+      ],
+      "size": [
+        290,
+        330
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "Attire: Michael Scott (Starfleet Captain Uniform)",
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "michael_attire.png",
         "image"
       ]
     }
@@ -1125,6 +1197,22 @@
       136,
       4,
       "IMAGE"
+    ],
+    [
+      300,
+      151,
+      0,
+      136,
+      5,
+      "IMAGE"
+    ],
+    [
+      301,
+      152,
+      0,
+      136,
+      6,
+      "IMAGE"
     ]
   ],
   "groups": [
@@ -1193,6 +1281,18 @@
       "title": "Character (Jean-Luc Picard)",
       "bounding": [
         -3087.0250937306782,
+        4124.857593177093,
+        738.4504814539137,
+        695.6445574329528
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 8,
+      "title": "Character (Michael Scott)",
+      "bounding": [
+        -2268.5746122767646,
         4124.857593177093,
         738.4504814539137,
         695.6445574329528

@@ -1,7 +1,7 @@
 {
   "id": "e3f2b845-8f2c-4b5a-9caf-eac1029d3e7e",
   "revision": 0,
-  "last_node_id": 153,
+  "last_node_id": 152,
   "last_link_id": 302,
   "nodes": [
     {
@@ -523,7 +523,7 @@
       ],
       "properties": {},
       "widgets_values": [
-        "video/scene_022784df/00_seq_4ab91279",
+        "picard_wants_to_see/picard_wants_to_see_2",
         "auto",
         "auto"
       ]
@@ -557,12 +557,12 @@
           "links": null
         }
       ],
-      "title": "Setting: Starship Corridor",
+      "title": "Location: Starship Bridge",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "star trek hallway.png",
+        "tng bridge occupied.png",
         "image"
       ]
     },
@@ -757,7 +757,7 @@
       },
       "widgets_values": [
         "16:9 (Widescreen)",
-        0.4,
+        0.2,
         32
       ],
       "color": "#322",
@@ -792,7 +792,7 @@
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "Michael walks down a corridor, meets with Dwight, and they continue to walk together while discussing a holodeck issue.\n\nintegrated_multimodal_description:\n[Shot 1] In the style of Star Trek: The Next Generation A shot establishes the Starship Corridor shown in <Picture 1>, preserving A corridor in a Star Trek: The Next Generation starship.. Michael Scott, shown in <Picture 2> and <Picture 3> appears. Dwight Schrute, shown in <Picture 4> and <Picture 5> appears. Michael walks down a starship corridor, headed toward a turbo lift. Dwight is behind him, walking at an increased pace to catch up. Once Dwight catches up to Michael, Dwight matches his pace and addresses him.\n[Shot 2] At 00:02.000, Dwight Schrute (S1) says: <d>[English] Captain.</d>\n[Shot 3] At 00:03.000, Dwight and Michael continue to walk down the hall together\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A"
+        "For the target video, at 0.00 seconds into the target video, <Picture 2> (from [Shot 1]) is fully referenced.\n\nJean-Luc picard starts being silly, while William T. Riker and Deanna Troi try to calm him down.\n\nThe target video is in a cinematic, literary style with soft lighting and a slightly desaturated color palette.\n\nintegrated_multimodal_description:\n[Shot 1] A shot establishes the Starship Bridge shown in <Picture 1>, preserving A starship bridge.. Jean-Luc Picard, shown in <Picture 3> appears. Deanna Troi, shown in <Picture 4> appears. William T. Riker, shown in <Picture 5> appears. Jean-Luc Picard is sitting in the captain's chair in the middle of a starship bridge. Seated on either side of him is William T. Riker and Deanna Troi.\n[Shot 2] Jean-Luc Picard (S1) says: <d>[English] I was just tricking you Deanna, sense again.</d>\n[Shot 3] Deanna Troi (S2) says: <d>[English] I sense that.</d>\n[Shot 4] Deanna Troi pauses for a moment\n[Shot 5] Deanna Troi (S2) says in a flat, deadpan tone: <d>[English] I sense that he was tricking me, and he just wants to see tits</d>\n[Shot 6] Jean-Luc Picard (S1) says: <d>[English] Computer, put some ti-</d>\n[Shot 7] William T. Riker (S3) says: <d>[English] Computer belay that</d>\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A"
       ],
       "color": "#322",
       "bgcolor": "#533"
@@ -826,7 +826,7 @@
         "Node name for S&R": "PrimitiveFloat"
       },
       "widgets_values": [
-        5.0
+        8.0
       ],
       "color": "#322",
       "bgcolor": "#533"
@@ -889,6 +889,50 @@
       ]
     },
     {
+      "id": 148,
+      "type": "FirstFrameLastFrameExtractor",
+      "pos": [
+        -2884.6077073141305,
+        3403.357782913893
+      ],
+      "size": [
+        351.375,
+        114
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "first_frame",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "last_frame",
+          "type": "IMAGE",
+          "links": [
+            294
+          ]
+        }
+      ],
+      "title": "{{ Previous Video Final Frame }}",
+      "properties": {
+        "Node name for S&R": "FirstFrameLastFrameExtractor"
+      },
+      "widgets_values": [
+        "picard_wants_to_see_1_00001_"
+      ]
+    },
+    {
       "id": 150,
       "type": "LoadImage",
       "pos": [
@@ -915,53 +959,17 @@
           "links": null
         }
       ],
-      "title": "Face: Michael Scott",
+      "title": "Face: Jean-Luc Picard",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "michael scott.png",
+        "picard.png",
         "image"
       ]
     },
     {
       "id": 151,
-      "type": "LoadImage",
-      "pos": [
-        -2691.1686193234877,
-        4225.682491880535
-      ],
-      "size": [
-        290,
-        330
-      ],
-      "flags": {},
-      "order": 13,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": []
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "title": "Attire: Michael Scott (Starfleet Captain Uniform)",
-      "properties": {
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "michael_attire.png",
-        "image"
-      ]
-    },
-    {
-      "id": 152,
       "type": "LoadImage",
       "pos": [
         -2229.654891330235,
@@ -987,28 +995,28 @@
           "links": null
         }
       ],
-      "title": "Face: Dwight Schrute",
+      "title": "Face: Deanna Troi",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "dwight.png",
+        "troiface.png",
         "image"
       ]
     },
     {
-      "id": 153,
+      "id": 152,
       "type": "LoadImage",
       "pos": [
-        -1872.718137869574,
-        4225.682491880535
+        -1411.2044098763213,
+        4221.375160838343
       ],
       "size": [
         290,
         330
       ],
       "flags": {},
-      "order": 13,
+      "order": 7,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1023,12 +1031,12 @@
           "links": null
         }
       ],
-      "title": "Attire: Dwight Schrute (Starfleet Chief of Security Uniform)",
+      "title": "Face: William T. Riker",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "dwight_attire.png",
+        "rikerface.png",
         "image"
       ]
     }
@@ -1228,15 +1236,15 @@
     ],
     [
       299,
-      150,
-      0,
+      148,
+      1,
       136,
       4,
       "IMAGE"
     ],
     [
       300,
-      151,
+      150,
       0,
       136,
       5,
@@ -1244,7 +1252,7 @@
     ],
     [
       301,
-      152,
+      151,
       0,
       136,
       6,
@@ -1252,7 +1260,7 @@
     ],
     [
       302,
-      153,
+      152,
       0,
       136,
       7,
@@ -1322,7 +1330,7 @@
     },
     {
       "id": 7,
-      "title": "Character (Michael Scott)",
+      "title": "Character (Jean-Luc Picard)",
       "bounding": [
         -3087.0250937306782,
         4124.857593177093,
@@ -1334,9 +1342,21 @@
     },
     {
       "id": 8,
-      "title": "Character (Dwight Schrute)",
+      "title": "Character (Deanna Troi)",
       "bounding": [
         -2268.5746122767646,
+        4124.857593177093,
+        738.4504814539137,
+        695.6445574329528
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 9,
+      "title": "Character (William T. Riker)",
+      "bounding": [
+        -1450.124130822851,
         4124.857593177093,
         738.4504814539137,
         695.6445574329528

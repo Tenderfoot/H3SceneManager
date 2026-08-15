@@ -1,5 +1,5 @@
 """
-Compiles Setting + Characters + a Sequence's beats into the six-section
+Compiles Location + Characters + a Sequence's beats into the six-section
 full-reference prompt text described in MiniMax-H3's
 VIDEO_PROMPT_WRITING_GUIDE_ref_en.md:
 
@@ -12,18 +12,22 @@ VIDEO_PROMPT_WRITING_GUIDE_ref_en.md:
 
 Design choices, spelled out because they're not fully dictated by the guide:
 
-- <Subject N> numbering is our own bookkeeping (Setting is always Subject 1,
+- <Subject N> numbering is our own bookkeeping (Location is always Subject 1,
   characters follow in scene order) -- it does NOT need to match physical
   socket order. <Picture N> and <Audio N> numbering DOES have to match the
   actual ref_image_N / ref_audio_N socket each asset is wired into, since
   that's positional data the model reads directly. Callers pass in the
   resolved slot names from the wiring step for exactly this reason.
 
-- Every beat is its own shot ([Shot 1], [Shot 2], ...), numbered by beat
-  position. [Shot 1] never carries a timestamp, per the guide -- later shots
-  render as "[Shot N] At MM:SS.mmm, ..." using that beat's own `timestamp`
-  field verbatim. Timestamps are NOT validated (ordering, range, or format) --
-  garbage in, garbage out, by design.
+- Every beat starts its own shot ([Shot 1], [Shot 2], ...) UNLESS its
+  is_new_shot flag is explicitly False, in which case it folds into the
+  shot started by the beat before it -- letting e.g. an action beat and the
+  dialogue beat right after it share one [Shot N]. The sequence's first
+  beat always starts [Shot 1] regardless of its own flag. [Shot 1] never
+  carries a timestamp, per the guide -- later shots render as
+  "[Shot N] At MM:SS.mmm, ..." using the timestamp of whichever beat
+  actually started that shot. Timestamps are NOT validated (ordering,
+  range, or format) -- garbage in, garbage out, by design.
 
 - Speaker IDs (S1, S2...) are assigned fresh per sequence, in order of first
   appearance in that sequence's beats -- each sequence is its own independent
@@ -59,14 +63,14 @@ Design choices, spelled out because they're not fully dictated by the guide:
   person can't easily get it right by hand; only the plain-English sentence
   after the bracket comes from the scene field. Per the guide's rule that
   summary must reuse existing labels rather than introduce new ones, that
-  premise sentence gets the same character/setting name -> bare <Subject N>
+  premise sentence gets the same character/location name -> bare <Subject N>
   substitution applied to it as detailed_description's beat text does.
 
-- Both the setting and each character get a one-time introduction sentence
+- Both the location and each character get a one-time introduction sentence
   prepended at their first appearance, reusing the same description text
   already given in subject_definitions -- per the guide's "describe an
   important Subject at its first clear appearance, then reuse the label
-  without redefining it" rule. The setting's sentence always attaches to
+  without redefining it" rule. The location's sentence always attaches to
   [Shot 1] (it's present from the start regardless of that beat's own text);
   each character's attaches to whichever shot they first speak in or are
   named in. Later shots featuring the same subject get no redescription --
@@ -199,7 +203,7 @@ def _tag_names_in_text(text: str, name_subject_pairs) -> str:
     tag, matching the guide's own convention (its examples use the tag as
     the sentence's subject directly, not name-plus-parenthetical).
     name_subject_pairs: iterable of (name, subject_number) -- callers build
-    this from characters and/or the setting, since the guide tags both
+    this from characters and/or the location, since the guide tags both
     ("<Subject 3> eating a cookie in <Subject 1>")."""
     for name, n in name_subject_pairs:
         if n is None or not name:
@@ -209,18 +213,39 @@ def _tag_names_in_text(text: str, name_subject_pairs) -> str:
     return text
 
 
-def compile_prompt(*, setting, characters, sequence, scene,
-                    setting_picture_slot=None,
+def _group_beats_into_shots(beats):
+    """
+    Groups a sequence's beats into shots. A beat starts a new shot unless
+    its is_new_shot flag is explicitly False, in which case it folds into
+    the shot started by the beat before it -- e.g. an action beat and the
+    dialogue beat right after it can share one [Shot N] instead of each
+    getting its own. The very first beat always starts shot 1 regardless of
+    its own flag, since there's no earlier shot for it to fold into.
+
+    Returns a list of shot groups; each group is a list of
+    (original_beat_index, beat) tuples, in original order.
+    """
+    shots = []
+    for i, beat in enumerate(beats):
+        starts_new = (i == 0) or bool(getattr(beat, "is_new_shot", True))
+        if starts_new:
+            shots.append([])
+        shots[-1].append((i, beat))
+    return shots
+
+
+def compile_prompt(*, location, characters, sequence, scene,
+                    location_picture_slot=None,
                     prev_frame_picture_slot=None,
                     character_slots=None,
                     attire_by_char_id=None):
     """
-    setting: Setting instance
+    location: Location instance
     characters: ordered list of Character instances used in this sequence
     sequence: Sequence instance being generated (reads .beats)
     scene: Scene instance (reads .non_diegetic_music)
-    setting_picture_slot: resolved slot name (e.g. "ref_images.ref_image_0")
-        the setting's reference image was wired into, or None if not wired
+    location_picture_slot: resolved slot name (e.g. "ref_images.ref_image_0")
+        the location's reference image was wired into, or None if not wired
     prev_frame_picture_slot: resolved slot name the previous-frame image was
         wired into, or None if this is the first sequence in the scene
     character_slots: dict of character_id -> {"face": slot_name_or_None,
@@ -240,20 +265,20 @@ def compile_prompt(*, setting, characters, sequence, scene,
     # of physical sockets) ----------
     subject_number_by_char_id = {}
     next_subject = 1
-    setting_subject_number = None
-    if setting.reference_image or setting.visual_description:
-        setting_subject_number = next_subject
+    location_subject_number = None
+    if location.reference_image or location.visual_description:
+        location_subject_number = next_subject
         next_subject += 1
     for character in characters:
         subject_number_by_char_id[character.id] = next_subject
         next_subject += 1
 
     # Flat (name, subject_number) pairs for tagging free text (beat content,
-    # the summary premise) -- covers both characters and the setting, since
+    # the summary premise) -- covers both characters and the location, since
     # the guide tags the environment in summary too ("<Subject 3> ... in <Subject 1>").
     name_subject_pairs = [(c.name, subject_number_by_char_id.get(c.id)) for c in characters]
-    if setting_subject_number is not None:
-        name_subject_pairs.append((setting.name, setting_subject_number))
+    if location_subject_number is not None:
+        name_subject_pairs.append((location.name, location_subject_number))
 
     # ---------- Speaker (Sx) numbering: fresh per sequence, assigned in
     # order of first appearance among this sequence's dialogue beats ----------
@@ -267,20 +292,28 @@ def compile_prompt(*, setting, characters, sequence, scene,
     characters_by_id = {c.id: c for c in characters}
     speaking_char_ids = set(speaker_number_by_char_id.keys())
 
-    # ---------- Per-character shot appearance tracking: every beat is its own
-    # shot (1-indexed by beat position). A character "appears" in a shot if
-    # they speak in it, or their name is mentioned (tagged) in an action beat. ----------
-    total_shots = len(sequence.beats) or 1
+    # ---------- Per-character shot appearance tracking: a beat starts a new
+    # shot unless it's folded into the previous one via is_new_shot=False.
+    # A character "appears" in a shot if they speak in it, or their name is
+    # mentioned (tagged) in an action beat, anywhere within that shot's
+    # (possibly multi-beat) group. ----------
+    shot_groups = _group_beats_into_shots(sequence.beats)
+    total_shots = len(shot_groups) or 1
+    beat_index_to_shot_n = {
+        idx: shot_n for shot_n, group in enumerate(shot_groups, start=1) for idx, _beat in group
+    }
     character_shot_numbers = {c.id: [] for c in characters}
     for i, beat in enumerate(sequence.beats):
-        shot_n = i + 1
+        shot_n = beat_index_to_shot_n[i]
         if beat.kind == "dialogue":
-            if beat.character_id in character_shot_numbers:
+            if (beat.character_id in character_shot_numbers
+                    and shot_n not in character_shot_numbers[beat.character_id]):
                 character_shot_numbers[beat.character_id].append(shot_n)
         elif beat.kind == "action":
             for character in characters:
                 if character.name and _name_pattern(character.name).search(beat.text or ""):
-                    character_shot_numbers[character.id].append(shot_n)
+                    if shot_n not in character_shot_numbers[character.id]:
+                        character_shot_numbers[character.id].append(shot_n)
 
     def _shot_labels(shot_numbers):
         return ", ".join(f"[Shot {n}]" for n in shot_numbers)
@@ -311,19 +344,19 @@ def compile_prompt(*, setting, characters, sequence, scene,
         )
         task_types.append(TASK_KEYFRAME)
 
-    # ---------- Setting: <Subject N> citing its <Picture N> ----------
-    if setting_subject_number is not None:
-        n = setting_subject_number
-        if setting_picture_slot is not None:
-            pic_n = slot_index(setting_picture_slot) + 1
+    # ---------- Location: <Subject N> citing its <Picture N> ----------
+    if location_subject_number is not None:
+        n = location_subject_number
+        if location_picture_slot is not None:
+            pic_n = slot_index(location_picture_slot) + 1
             citation = f"<Picture {pic_n}>"
         else:
             citation = None
-        desc = setting.visual_description or setting.name
+        desc = location.visual_description or location.name
         if citation:
-            subject_lines.append(f"<Subject {n}> is the {setting.name} environment in {citation}, {desc}.")
+            subject_lines.append(f"<Subject {n}> is the {location.name} environment in {citation}, {desc}.")
         else:
-            subject_lines.append(f"<Subject {n}> is the {setting.name} environment, {desc}.")
+            subject_lines.append(f"<Subject {n}> is the {location.name} environment, {desc}.")
         all_shots_label = _shot_labels(range(1, total_shots + 1))
         retention_lines.append(
             f"<Subject {n}> (appears in {all_shots_label}): fully_preserved - the "
@@ -395,7 +428,7 @@ def compile_prompt(*, setting, characters, sequence, scene,
     premise = (scene.summary_premise or "").strip()
     if premise:
         # The guide requires summary to use the same <Subject N>/<Picture N>/etc
-        # labels rather than introducing new ones -- so character/setting names
+        # labels rather than introducing new ones -- so character/location names
         # typed into the premise get replaced with their bare tags, same as
         # detailed_description does.
         premise = _tag_names_in_text(premise, name_subject_pairs)
@@ -415,28 +448,31 @@ def compile_prompt(*, setting, characters, sequence, scene,
         opening = "The target video maintains a consistent, naturalistic visual style matching the established scene."
     shot_blocks = []
 
-    for i, beat in enumerate(sequence.beats):
-        shot_n = i + 1
-
-        if beat.kind == "action":
-            content = _tag_names_in_text(beat.text, name_subject_pairs)
-        elif beat.kind == "dialogue":
-            character = characters_by_id.get(beat.character_id)
-            if character is None:
-                content = ""
+    for shot_n, group in enumerate(shot_groups, start=1):
+        content_parts = []
+        for _idx, beat in group:
+            if beat.kind == "action":
+                piece = _tag_names_in_text(beat.text, name_subject_pairs)
+            elif beat.kind == "dialogue":
+                character = characters_by_id.get(beat.character_id)
+                if character is None:
+                    piece = ""
+                else:
+                    n = subject_number_by_char_id.get(character.id)
+                    sx = speaker_number_by_char_id.get(character.id)
+                    lang = beat.language or "English"
+                    delivery = (beat.delivery or "").strip()
+                    says_clause = f"says {delivery}," if delivery else "says,"
+                    piece = f"<Subject {n}> (S{sx}) {says_clause} <d>[{lang}] {beat.line}</d>"
             else:
-                n = subject_number_by_char_id.get(character.id)
-                sx = speaker_number_by_char_id.get(character.id)
-                lang = beat.language or "English"
-                delivery = (beat.delivery or "").strip()
-                says_clause = f"says {delivery}," if delivery else "says,"
-                content = f"<Subject {n}> (S{sx}) {says_clause} <d>[{lang}] {beat.line}</d>"
-        else:
-            content = ""
+                piece = ""
+            if piece:
+                content_parts.append(piece)
+        content = " ".join(content_parts)
 
         # Lead-in sentences before this shot's own content, in order:
         # (1) Shot 1 only: frame-continuity citation if chaining from a
-        #     previous sequence, then the setting's establishing sentence.
+        #     previous sequence, then the location's establishing sentence.
         # (2) Any shot: a one-time introduction for each character whose
         #     FIRST appearance in the sequence is this shot, reusing their
         #     subject_definitions description -- per the guide's "describe at
@@ -448,9 +484,9 @@ def compile_prompt(*, setting, characters, sequence, scene,
             if prev_frame_picture_slot is not None:
                 pic_n = slot_index(prev_frame_picture_slot) + 1
                 lead_in_parts.append(f"The shot begins from <Picture {pic_n}>.")
-            if setting_subject_number is not None:
-                setting_desc = setting.visual_description or setting.name
-                lead_in_parts.append(f"The shot establishes <Subject {setting_subject_number}>, {setting_desc}.")
+            if location_subject_number is not None:
+                location_desc = location.visual_description or location.name
+                lead_in_parts.append(f"The shot establishes <Subject {location_subject_number}>, {location_desc}.")
 
         for character in characters:
             if first_appearance_shot_by_char_id.get(character.id) != shot_n:
@@ -468,7 +504,12 @@ def compile_prompt(*, setting, characters, sequence, scene,
         if shot_n == 1:
             header = "[Shot 1]"  # never carries a timestamp, per the guide
         else:
-            ts = (beat.timestamp or "").strip()
+            # The timestamp of the beat that actually STARTED this shot --
+            # beats folded into it via is_new_shot=False don't get their own
+            # header, so their own timestamp (which should be blank anyway,
+            # enforced server-side) never comes into play here.
+            starting_beat = group[0][1]
+            ts = (starting_beat.timestamp or "").strip()
             header = f"[Shot {shot_n}] At {ts}," if ts else f"[Shot {shot_n}]"
         block = " ".join(p for p in (header, lead_in, content) if p).strip()
 
@@ -477,7 +518,7 @@ def compile_prompt(*, setting, characters, sequence, scene,
     detailed_description = opening + "\n" + "\n".join(shot_blocks)
 
     # ---------- overall_soundscape / non_diegetic_music ----------
-    overall_soundscape = setting.soundscape_description.strip() if setting.soundscape_description else "N/A"
+    overall_soundscape = location.soundscape_description.strip() if location.soundscape_description else "N/A"
     non_diegetic_music = scene.non_diegetic_music.strip() if scene.non_diegetic_music else "N/A"
 
     sections = [
@@ -491,8 +532,8 @@ def compile_prompt(*, setting, characters, sequence, scene,
     return "\n\n".join(f"{title}:\n{body}" for title, body in sections)
 
 
-def compile_lean_prompt(*, setting, characters, sequence, scene,
-                         setting_picture_slot=None,
+def compile_lean_prompt(*, location, characters, sequence, scene,
+                         location_picture_slot=None,
                          prev_frame_picture_slot=None,
                          character_slots=None,
                          attire_by_char_id=None):
@@ -517,10 +558,10 @@ def compile_lean_prompt(*, setting, characters, sequence, scene,
     image, and a voice clip, all for the same character." The choices below
     are our own adaptation, not a literal implementation of either guide:
 
-    - No <Subject N> abstraction. Characters and the setting are referred to
+    - No <Subject N> abstraction. Characters and the location are referred to
       by their actual names throughout, matching the base guide's own style
       (it never uses abstract subject labels).
-    - Each character/setting's <Picture N>/<Audio N> citation happens inline,
+    - Each character/location's <Picture N>/<Audio N> citation happens inline,
       folded into their first-appearance sentence, using the base guide's
       own "preserving X, Y, Z" idiom (lifted directly from its I2VA example:
       "preserving her appearance, clothing, seat position...") as the
@@ -563,17 +604,24 @@ def compile_lean_prompt(*, setting, characters, sequence, scene,
 
     # Per-character first-appearance shot tracking (same logic as the full
     # format): a character "appears" in a shot if they speak in it or their
-    # name is mentioned in an action beat's text.
+    # name is mentioned in an action beat's text, anywhere within that
+    # shot's (possibly multi-beat) group.
+    shot_groups = _group_beats_into_shots(sequence.beats)
+    beat_index_to_shot_n = {
+        idx: shot_n for shot_n, group in enumerate(shot_groups, start=1) for idx, _beat in group
+    }
     character_shot_numbers = {c.id: [] for c in characters}
     for i, beat in enumerate(sequence.beats):
-        shot_n = i + 1
+        shot_n = beat_index_to_shot_n[i]
         if beat.kind == "dialogue":
-            if beat.character_id in character_shot_numbers:
+            if (beat.character_id in character_shot_numbers
+                    and shot_n not in character_shot_numbers[beat.character_id]):
                 character_shot_numbers[beat.character_id].append(shot_n)
         elif beat.kind == "action":
             for character in characters:
                 if character.name and _name_pattern(character.name).search(beat.text or ""):
-                    character_shot_numbers[character.id].append(shot_n)
+                    if shot_n not in character_shot_numbers[character.id]:
+                        character_shot_numbers[character.id].append(shot_n)
     first_appearance_shot_by_char_id = {
         cid: shots[0] for cid, shots in character_shot_numbers.items() if shots
     }
@@ -613,40 +661,43 @@ def compile_lean_prompt(*, setting, characters, sequence, scene,
             return f"{character.name}, {ref_clause}"
         return character.name
 
-    def _setting_intro():
-        desc = setting.visual_description or setting.name
-        if setting_picture_slot is not None:
-            pic_n = slot_index(setting_picture_slot) + 1
-            return f"the {setting.name} shown in <Picture {pic_n}>, preserving {desc}"
-        return f"the {setting.name}, {desc}"
+    def _location_intro():
+        desc = location.visual_description or location.name
+        if location_picture_slot is not None:
+            pic_n = slot_index(location_picture_slot) + 1
+            return f"the {location.name} shown in <Picture {pic_n}>, preserving {desc}"
+        return f"the {location.name}, {desc}"
 
     shot_blocks = []
-    for i, beat in enumerate(sequence.beats):
-        shot_n = i + 1
-
-        if beat.kind == "action":
-            content = beat.text or ""
-        elif beat.kind == "dialogue":
-            character = characters_by_id.get(beat.character_id)
-            if character is None:
-                content = ""
+    for shot_n, group in enumerate(shot_groups, start=1):
+        content_parts = []
+        for _idx, beat in group:
+            if beat.kind == "action":
+                piece = beat.text or ""
+            elif beat.kind == "dialogue":
+                character = characters_by_id.get(beat.character_id)
+                if character is None:
+                    piece = ""
+                else:
+                    sx = speaker_number_by_char_id.get(character.id)
+                    lang = beat.language or "English"
+                    delivery = (beat.delivery or "").strip()
+                    delivery_clause = f" {delivery}" if delivery else ""
+                    piece = f"{character.name} (S{sx}) says{delivery_clause}: <d>[{lang}] {beat.line}</d>"
             else:
-                sx = speaker_number_by_char_id.get(character.id)
-                lang = beat.language or "English"
-                delivery = (beat.delivery or "").strip()
-                delivery_clause = f" {delivery}" if delivery else ""
-                content = f"{character.name} (S{sx}) says{delivery_clause}: <d>[{lang}] {beat.line}</d>"
-        else:
-            content = ""
+                piece = ""
+            if piece:
+                content_parts.append(piece)
+        content = " ".join(content_parts)
 
         lead_in_parts = []
 
         if shot_n == 1:
-            # Setting's establishing sentence opens Shot 1. Both
+            # Location's establishing sentence opens Shot 1. Both
             # scene.summary_premise and scene.style_opening are placed
             # separately, as their own standalone paragraphs between the
             # alignment preamble and the core fields -- see assembly below.
-            lead_in_parts.append(f"A shot establishes {_setting_intro()}.")
+            lead_in_parts.append(f"A shot establishes {_location_intro()}.")
 
         for character in characters:
             if first_appearance_shot_by_char_id.get(character.id) == shot_n:
@@ -657,7 +708,12 @@ def compile_lean_prompt(*, setting, characters, sequence, scene,
         if shot_n == 1:
             header = "[Shot 1]"  # never carries a timestamp, per the guide
         else:
-            ts = (beat.timestamp or "").strip()
+            # The timestamp of the beat that actually STARTED this shot --
+            # beats folded into it via is_new_shot=False don't get their own
+            # header, so their own timestamp (which should be blank anyway,
+            # enforced server-side) never comes into play here.
+            starting_beat = group[0][1]
+            ts = (starting_beat.timestamp or "").strip()
             header = f"[Shot {shot_n}] At {ts}," if ts else f"[Shot {shot_n}]"
 
         block = " ".join(p for p in (header, lead_in, content) if p).strip()
@@ -688,7 +744,7 @@ def compile_lean_prompt(*, setting, characters, sequence, scene,
     style = (scene.style_opening or "").strip()
     style_block = f"{style}\n\n" if style else ""
 
-    overall_soundscape = setting.soundscape_description.strip() if setting.soundscape_description else "N/A"
+    overall_soundscape = location.soundscape_description.strip() if location.soundscape_description else "N/A"
     non_diegetic_music = scene.non_diegetic_music.strip() if scene.non_diegetic_music else "N/A"
 
     sections = [

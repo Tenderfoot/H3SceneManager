@@ -16,6 +16,13 @@ Core ideas, matched to the conventions already present in the template file:
 
 - A group titled "{{ Establishing References }}" holds two singleton nodes:
       "{{ Setting Image }}"            (LoadImage)   -> wired once, into ref_images.*
+                                        (matched by its literal ComfyUI node title,
+                                        which stays "Setting Image" in your saved
+                                        template even though we call this concept
+                                        "Location" everywhere else in our own code --
+                                        renaming it here would mean also renaming
+                                        the node in your actual workflow file, which
+                                        we don't do automatically)
       "{{ Previous Video Final Frame }}" (FirstFrameLastFrameExtractor)
           -> only included for sequences after the first in a scene; its
              video_path widget contains the literal substring "{{oldfilename}}"
@@ -27,8 +34,9 @@ Core ideas, matched to the conventions already present in the template file:
   and only append brand-new slot entries once those run out.
 
 - Any other string widget value containing "{{ Some_Key }}" is replaced via a
-  generic substitution pass, keyed by a dict you pass in (Pickup_Description,
-  Setting_Description, etc.)
+  generic substitution pass, keyed by a dict you pass in. Currently unused --
+  the prompt is fully compiled by prompt_compiler.py instead -- kept as a
+  hook for future template placeholders.
 
 ASSUMPTION THAT NEEDS LIVE VERIFICATION: appending new socket entries beyond
 what the template already shows (e.g. a 5th ref_image or 2nd ref_audio) is
@@ -57,7 +65,10 @@ ESTABLISHING_GROUP_TITLE = "{{ Establishing References }}"
 FACE_TITLE = "{{ Face N }}"
 ATTIRE_TITLE = "{{ Attire N }}"
 VOICE_TITLE = "{{ Voice N }}"
-SETTING_IMAGE_TITLE = "{{ Setting Image }}"
+SETTING_IMAGE_TITLE = "{{ Setting Image }}"  # matches the literal ComfyUI node title in
+                                              # the template JSON -- NOT renamed to
+                                              # "Location" since that would require also
+                                              # renaming the node in your saved workflow
 PREV_FRAME_TITLE = "{{ Previous Video Final Frame }}"
 
 IMAGE_FAMILY = ("ref_images", "ref_image")
@@ -206,12 +217,19 @@ def _substitute_strings(node, substitutions):
             wv[i] = PLACEHOLDER_RE.sub(repl, val)
 
 
-def generate_sequence_workflow(template, *, setting, characters, sequence, scene,
+def _slugify(name):
+    """Lowercase, filesystem/prefix-safe slug for a scene name."""
+    slug = re.sub(r"[^a-z0-9]+", "_", (name or "").strip().lower()).strip("_")
+    return slug or "untitled"
+
+
+def generate_sequence_workflow(template, *, location, characters, sequence, scene,
                                 attire_by_char_id=None,
-                                previous_output_path=None, output_prefix=None):
+                                previous_output_path=None, output_prefix=None,
+                                prompt_format="lean"):
     """
     template: parsed dict of the template workflow JSON (will be deep-copied)
-    setting: Setting instance
+    location: Location instance
     characters: ordered list of Character instances for this scene
     sequence: Sequence instance being generated
     scene: Scene instance (for non_diegetic_dialog / soundscape)
@@ -221,8 +239,17 @@ def generate_sequence_workflow(template, *, setting, characters, sequence, scene
         value) gets no Attire node at all for this generation.
     previous_output_path: resolved absolute path to previous sequence's video,
         or None if this is the first sequence in the scene
-    output_prefix: filename prefix to give the SaveVideo node; defaults to a
-        prefix derived from scene id + sequence index
+    output_prefix: filename prefix to give the SaveVideo node; defaults to
+        "<scene_slug>/<scene_slug>_<sequence_number>" -- a folder per scene
+        (named after the scene, not its id) containing files named
+        scenename_1, scenename_2, etc. H3/ComfyUI handles de-duplicating
+        filenames on its own if the same prefix is generated twice.
+    prompt_format: "lean" (default) or "full" -- which prompt_compiler
+        function to use. Chosen per generate/run call rather than stored
+        anywhere; not a Scene or Sequence field, so mixing formats across
+        sequences in the same scene, or across repeated generates of the
+        same sequence, is just a matter of what the caller passes in each
+        time.
 
     Returns: a new workflow dict, ready to write to disk / submit to ComfyUI.
     """
@@ -235,7 +262,7 @@ def generate_sequence_workflow(template, *, setting, characters, sequence, scene
     establishing_group = _find_group(wf, ESTABLISHING_GROUP_TITLE)
     establishing_nodes = _nodes_in_group(wf, establishing_group)
 
-    setting_node = next((n for n in establishing_nodes if n.get("title") == SETTING_IMAGE_TITLE), None)
+    location_node = next((n for n in establishing_nodes if n.get("title") == SETTING_IMAGE_TITLE), None)
     prev_frame_node = next((n for n in establishing_nodes if n.get("title") == PREV_FRAME_TITLE), None)
 
     # --- Character N group: identify template nodes before wiping anything ---
@@ -249,16 +276,16 @@ def generate_sequence_workflow(template, *, setting, characters, sequence, scene
     # This resets their target slots on the sink node back to link=None so
     # _reserve_slot can correctly reuse or extend them below.
     nodes_to_reset = set(template_char_node_ids)
-    if setting_node is not None:
-        nodes_to_reset.add(setting_node["id"])
+    if location_node is not None:
+        nodes_to_reset.add(location_node["id"])
     if prev_frame_node is not None:
         nodes_to_reset.add(prev_frame_node["id"])
-    # Keep setting_node/prev_frame_node themselves (we still want to reuse and
+    # Keep location_node/prev_frame_node themselves (we still want to reuse and
     # rewire them if applicable) -- only fully *remove* the character template
     # nodes and, conditionally, prev_frame_node if there's no previous output.
     keep_ids = set()
-    if setting_node is not None:
-        keep_ids.add(setting_node["id"])
+    if location_node is not None:
+        keep_ids.add(location_node["id"])
     if prev_frame_node is not None and previous_output_path:
         keep_ids.add(prev_frame_node["id"])
     remove_ids = nodes_to_reset - keep_ids
@@ -278,13 +305,13 @@ def generate_sequence_workflow(template, *, setting, characters, sequence, scene
                 if inp.get("link") in kept_link_ids:
                     inp["link"] = None
 
-    if setting_node is not None:
-        setting_node["widgets_values"][0] = setting.reference_image
-        setting_node["title"] = f"Setting: {setting.name}"
-        list_idx, setting_picture_slot, _ = _reserve_slot(sink, IMAGE_FAMILY)
-        _wire(wf, sink, list_idx, setting_node["id"], 0, "IMAGE", next_link_id)
+    if location_node is not None:
+        location_node["widgets_values"][0] = location.reference_image
+        location_node["title"] = f"Location: {location.name}"
+        list_idx, location_picture_slot, _ = _reserve_slot(sink, IMAGE_FAMILY)
+        _wire(wf, sink, list_idx, location_node["id"], 0, "IMAGE", next_link_id)
     else:
-        setting_picture_slot = None
+        location_picture_slot = None
 
     prev_frame_picture_slot = None
     if prev_frame_node is not None:
@@ -394,19 +421,23 @@ def generate_sequence_workflow(template, *, setting, characters, sequence, scene
             node["widgets_values"][0] = sequence.duration
 
     # --- Output filename prefix, for chaining ---
-    prefix = output_prefix or f"video/{scene.id}/{sequence.index:02d}_{sequence.id}"
+    # SaveVideo's prefix supports "/" as a folder separator -- put each
+    # scene's renders in their own folder named after the scene, with
+    # files inside named scenename_N (H3 handles de-duping on its own).
+    scene_slug = _slugify(scene.name)
+    prefix = output_prefix or f"{scene_slug}/{scene_slug}_{sequence.index + 1}"
     for node in wf["nodes"]:
         if node.get("type") == "SaveVideo":
             node["widgets_values"][0] = prefix
 
     # --- Compile the prompt (full six-section rewrite-guide format, or the
-    # leaner base-guide-style format -- scene.prompt_format decides) and drop
-    # it wholesale into the prompt widget (fully replaces the template's
-    # example prompt text) ---
-    compiler_fn = compile_lean_prompt if scene.prompt_format == "lean" else compile_prompt
+    # leaner base-guide-style format -- caller's prompt_format argument
+    # decides, not a stored field) and drop it wholesale into the prompt
+    # widget (fully replaces the template's example prompt text) ---
+    compiler_fn = compile_lean_prompt if prompt_format == "lean" else compile_prompt
     compiled_prompt = compiler_fn(
-        setting=setting, characters=characters, sequence=sequence, scene=scene,
-        setting_picture_slot=setting_picture_slot,
+        location=location, characters=characters, sequence=sequence, scene=scene,
+        location_picture_slot=location_picture_slot,
         prev_frame_picture_slot=prev_frame_picture_slot,
         character_slots=character_slots,
         attire_by_char_id=attire_by_char_id,

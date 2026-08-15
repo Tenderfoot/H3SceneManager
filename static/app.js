@@ -18,10 +18,21 @@ async function api(path, opts = {}) {
 // A dynamically-opened scene editor tab (see "scene editor" section below)
 // gets discarded -- unsaved changes and all -- whenever any OTHER tab is
 // activated. Static tabs and the dynamic scene tab both route through here.
+// Leaving a static tab that has a collapsible "create" form open (Characters,
+// Locations, Scenes) also collapses that form back down, same as Cancel.
 function activateTab(tabId) {
+  const currentBtn = document.querySelector(".tab.active");
+  const currentTabId = currentBtn ? currentBtn.dataset.tab : null;
+
   if (openSceneEditor && tabId !== openSceneEditor.tabId) {
     closeSceneEditor();  // silently discards any unsaved local edits
   }
+  if (currentTabId && currentTabId !== tabId) {
+    if (currentTabId === "characters") hideCharacterForm();
+    else if (currentTabId === "locations") hideLocationForm();
+    else if (currentTabId === "scenes") hideSceneForm();
+  }
+
   $$(".tab").forEach(b => b.classList.remove("active"));
   $$(".tab-panel").forEach(p => p.classList.remove("active"));
   const btn = document.querySelector(`.tab[data-tab="${tabId}"]`);
@@ -49,7 +60,7 @@ function attireRowHtml(attire = {}) {
     <div class="attire-row" data-attire-id="${id}">
       <input type="hidden" class="attire-id" value="${id}">
       <input type="text" class="attire-label" placeholder="Label (e.g. 'Uniform')" value="${attire.label || ""}">
-      <input type="text" class="attire-image" placeholder="Absolute path to attire reference image" value="${attire.image_path || ""}">
+      <input type="text" class="attire-image" placeholder="Filename in ComfyUI's input/ dir (or an absolute path)" value="${attire.image_path || ""}">
       <input type="text" class="attire-desc" placeholder="Optional description (clothing details for the prompt)" value="${attire.description || ""}">
       <label class="default-toggle"><input type="radio" name="attire_default" ${checked}> Default</label>
       <button type="button" data-remove-attire>×</button>
@@ -81,7 +92,7 @@ function collectAttireOptions() {
 
 $("#add-attire-row").addEventListener("click", () => addAttireRow());
 
-// ---------- shared category-dropdown helper (characters, settings each have
+// ---------- shared category-dropdown helper (characters, locations each have
 // their own independent category namespace, not shared between them) ----------
 function makeCategoryPicker(selectEl, newInputEl) {
   function populate(categories, selectedValue = "") {
@@ -102,8 +113,15 @@ function makeCategoryPicker(selectEl, newInputEl) {
 
 const characterCategoryPicker = makeCategoryPicker(
   $("#character-category-select"), $("#character-category-new"));
-const settingCategoryPicker = makeCategoryPicker(
-  $("#setting-category-select"), $("#setting-category-new"));
+const locationCategoryPicker = makeCategoryPicker(
+  $("#location-category-select"), $("#location-category-new"));
+
+// Category groups default collapsed on both tabs -- these track which ones
+// the user has explicitly expanded, by category name. Persists across
+// refreshCharacters()/refreshLocations() calls (e.g. after add/edit/delete)
+// since those rebuild the list from scratch every time.
+const expandedCharacterCategories = new Set();
+const expandedLocationCategories = new Set();
 
 // ---------- characters ----------
 async function refreshCharacters() {
@@ -126,10 +144,29 @@ async function refreshCharacters() {
   });
 
   for (const key of sortedKeys) {
+    const expanded = expandedCharacterCategories.has(key);
+
+    const group = document.createElement("div");
+    group.className = "category-group";
+
     const heading = document.createElement("div");
     heading.className = "category-heading";
-    heading.textContent = key;
-    container.appendChild(heading);
+    const caret = document.createElement("span");
+    caret.className = "category-caret";
+    caret.textContent = expanded ? "▾" : "▸";
+    heading.appendChild(caret);
+    heading.appendChild(document.createTextNode(" " + key));
+    heading.onclick = () => {
+      if (expandedCharacterCategories.has(key)) expandedCharacterCategories.delete(key);
+      else expandedCharacterCategories.add(key);
+      refreshCharacters();
+    };
+    group.appendChild(heading);
+
+    const body = document.createElement("div");
+    body.className = "category-body";
+    body.style.display = expanded ? "" : "none";
+    group.appendChild(body);
 
     for (const c of grouped[key]) {
       const card = document.createElement("div");
@@ -137,16 +174,23 @@ async function refreshCharacters() {
       const attireNote = c.attire_options.length
         ? `${c.attire_options.length} attire option(s)`
         : "no attire options";
+      const faceThumbHtml = `<div class="char-thumb-wrap">${
+        c.face_image ? `<img class="char-thumb" src="${mediaUrl(c.face_image)}" alt="" onerror="this.remove()">` : ""
+      }</div>`;
       card.innerHTML = `
-        <div>
-          <strong>${c.name}</strong>
-          <div class="meta">${c.face_image || "no face image"} · ${c.voice_audio || "no voice"} · ${attireNote}</div>
+        <div class="entity-card-main">
+          ${faceThumbHtml}
+          <div>
+            <strong>${c.name}</strong>
+            <div class="meta">${c.face_image || "no face image"} · ${c.voice_audio || "no voice"} · ${attireNote}</div>
+          </div>
         </div>
         <div>
           <button data-edit>Edit</button>
           <button data-delete class="danger">Delete</button>
         </div>`;
       card.querySelector("[data-edit]").onclick = () => {
+        showCharacterForm();
         const f = $("#character-form");
         f.id.value = c.id; f.name.value = c.name;
         f.face_image.value = c.face_image;
@@ -170,10 +214,27 @@ async function refreshCharacters() {
           refreshCharacters(); refreshCastingCharacterSelect();
         }
       };
-      container.appendChild(card);
+      body.appendChild(card);
     }
+
+    container.appendChild(group);
   }
 }
+
+// ---------- collapsible "new character" form: hidden by default ----------
+function showCharacterForm() {
+  $("#character-form").style.display = "flex";
+  $("#add-character-btn").style.display = "none";
+}
+function hideCharacterForm() {
+  $("#character-form").style.display = "none";
+  $("#add-character-btn").style.display = "";
+  $("#character-form").reset();
+  $("#character-form").id.value = "";
+  clearAttireRows();
+}
+$("#add-character-btn").addEventListener("click", showCharacterForm);
+$("#cancel-character-btn").addEventListener("click", hideCharacterForm);
 
 $("#character-form").addEventListener("submit", async e => {
   e.preventDefault();
@@ -191,23 +252,23 @@ $("#character-form").addEventListener("submit", async e => {
   };
   if (f.id.value) await api(`/characters/${f.id.value}`, { method: "PUT", body: JSON.stringify(payload) });
   else await api("/characters", { method: "POST", body: JSON.stringify(payload) });
-  f.reset(); f.id.value = ""; clearAttireRows();
+  hideCharacterForm();
   refreshCharacters(); refreshCastingCharacterSelect();
 });
 
-// ---------- settings ----------
-async function refreshSettings() {
-  const list = await api("/settings");
-  const categories = [...new Set(list.map(s => s.category).filter(Boolean))].sort();
-  settingCategoryPicker.populate(categories, "");
+// ---------- locations ----------
+async function refreshLocations() {
+  const list = await api("/locations");
+  const categories = [...new Set(list.map(loc => loc.category).filter(Boolean))].sort();
+  locationCategoryPicker.populate(categories, "");
 
-  const container = $("#setting-list");
+  const container = $("#location-list");
   container.innerHTML = "";
 
   const grouped = {};
-  for (const s of list) {
-    const key = s.category || "Uncategorized";
-    (grouped[key] = grouped[key] || []).push(s);
+  for (const loc of list) {
+    const key = loc.category || "Uncategorized";
+    (grouped[key] = grouped[key] || []).push(loc);
   }
   const sortedKeys = Object.keys(grouped).sort((a, b) => {
     if (a === "Uncategorized") return 1;
@@ -216,74 +277,110 @@ async function refreshSettings() {
   });
 
   for (const key of sortedKeys) {
+    const expanded = expandedLocationCategories.has(key);
+
+    const group = document.createElement("div");
+    group.className = "category-group";
+
     const heading = document.createElement("div");
     heading.className = "category-heading";
-    heading.textContent = key;
-    container.appendChild(heading);
+    const caret = document.createElement("span");
+    caret.className = "category-caret";
+    caret.textContent = expanded ? "▾" : "▸";
+    heading.appendChild(caret);
+    heading.appendChild(document.createTextNode(" " + key));
+    heading.onclick = () => {
+      if (expandedLocationCategories.has(key)) expandedLocationCategories.delete(key);
+      else expandedLocationCategories.add(key);
+      refreshLocations();
+    };
+    group.appendChild(heading);
 
-    for (const s of grouped[key]) {
+    const body = document.createElement("div");
+    body.className = "category-body";
+    body.style.display = expanded ? "" : "none";
+    group.appendChild(body);
+
+    for (const loc of grouped[key]) {
       const card = document.createElement("div");
       card.className = "entity-card";
       card.innerHTML = `
         <div>
-          <strong>${s.name}</strong>
-          <div class="meta">${s.reference_image || "no reference image"}</div>
+          <strong>${loc.name}</strong>
+          <div class="meta">${loc.reference_image || "no reference image"}</div>
         </div>
         <div>
           <button data-edit>Edit</button>
           <button data-delete class="danger">Delete</button>
         </div>`;
       card.querySelector("[data-edit]").onclick = () => {
-        const f = $("#setting-form");
-        f.id.value = s.id; f.name.value = s.name;
-        f.reference_image.value = s.reference_image;
-        f.visual_description.value = s.visual_description;
-        f.soundscape_description.value = s.soundscape_description;
-        f.properties.value = JSON.stringify(s.properties, null, 2);
-        if (s.category && categories.includes(s.category)) {
-          settingCategoryPicker.populate(categories, s.category);
-        } else if (s.category) {
-          settingCategoryPicker.populate(categories, "__new__");
-          f.category_new.value = s.category;
+        showLocationForm();
+        const f = $("#location-form");
+        f.id.value = loc.id; f.name.value = loc.name;
+        f.reference_image.value = loc.reference_image;
+        f.visual_description.value = loc.visual_description;
+        f.soundscape_description.value = loc.soundscape_description;
+        f.properties.value = JSON.stringify(loc.properties, null, 2);
+        if (loc.category && categories.includes(loc.category)) {
+          locationCategoryPicker.populate(categories, loc.category);
+        } else if (loc.category) {
+          locationCategoryPicker.populate(categories, "__new__");
+          f.category_new.value = loc.category;
         } else {
-          settingCategoryPicker.populate(categories, "");
+          locationCategoryPicker.populate(categories, "");
         }
       };
       card.querySelector("[data-delete]").onclick = async () => {
-        if (confirm(`Delete setting "${s.name}"?`)) {
-          await api(`/settings/${s.id}`, { method: "DELETE" });
-          refreshSettings(); refreshSceneSettingSelect();
+        if (confirm(`Delete location "${loc.name}"?`)) {
+          await api(`/locations/${loc.id}`, { method: "DELETE" });
+          refreshLocations(); refreshSceneLocationSelect();
         }
       };
-      container.appendChild(card);
+      body.appendChild(card);
     }
+
+    container.appendChild(group);
   }
 }
 
-$("#setting-form").addEventListener("submit", async e => {
+// ---------- collapsible "new location" form: hidden by default ----------
+function showLocationForm() {
+  $("#location-form").style.display = "flex";
+  $("#add-location-btn").style.display = "none";
+}
+function hideLocationForm() {
+  $("#location-form").style.display = "none";
+  $("#add-location-btn").style.display = "";
+  $("#location-form").reset();
+  $("#location-form").id.value = "";
+}
+$("#add-location-btn").addEventListener("click", showLocationForm);
+$("#cancel-location-btn").addEventListener("click", hideLocationForm);
+
+$("#location-form").addEventListener("submit", async e => {
   e.preventDefault();
   const f = e.target;
   let properties;
   try { properties = parsePropertiesField(f); } catch { return; }
   const payload = {
     name: f.name.value, reference_image: f.reference_image.value,
-    category: settingCategoryPicker.resolveValue(),
+    category: locationCategoryPicker.resolveValue(),
     visual_description: f.visual_description.value,
     soundscape_description: f.soundscape_description.value,
     properties,
   };
-  if (f.id.value) await api(`/settings/${f.id.value}`, { method: "PUT", body: JSON.stringify(payload) });
-  else await api("/settings", { method: "POST", body: JSON.stringify(payload) });
-  f.reset(); f.id.value = "";
-  refreshSettings(); refreshSceneSettingSelect();
+  if (f.id.value) await api(`/locations/${f.id.value}`, { method: "PUT", body: JSON.stringify(payload) });
+  else await api("/locations", { method: "POST", body: JSON.stringify(payload) });
+  hideLocationForm();
+  refreshLocations(); refreshSceneLocationSelect();
 });
 
-// ---------- scenes: setting select + character/attire casting rows ----------
-async function refreshSceneSettingSelect() {
-  const list = await api("/settings");
-  const sel = $("#scene-setting-select");
-  sel.innerHTML = `<option value="">-- choose a setting --</option>` +
-    list.map(s => `<option value="${s.id}">${s.name}</option>`).join("");
+// ---------- scenes: location select + character/attire casting rows ----------
+async function refreshSceneLocationSelect() {
+  const list = await api("/locations");
+  const sel = $("#scene-location-select");
+  sel.innerHTML = `<option value="">-- choose a location --</option>` +
+    list.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join("");
 }
 
 let stagedCastings = [];       // [{character_id, attire_id}] being built for the scene form
@@ -398,7 +495,7 @@ async function refreshSceneStyleSelect() {
   sel.innerHTML = `<option value="">— no style opening set —</option>${opts}<option value="custom">Custom…</option>`;
 }
 
-const SUMMARY_PREMISE_LIMIT = 250;
+const SUMMARY_PREMISE_LIMIT = 128;
 
 function updateSummaryPremiseCounter() {
   const len = $("#scene-summary-premise").value.length;
@@ -412,25 +509,38 @@ $("#scene-style-select").addEventListener("change", () => {
   $("#scene-style-custom").style.display = $("#scene-style-select").value === "custom" ? "block" : "none";
 });
 
+// ---------- collapsible "new scene" form: hidden by default ----------
+function showSceneForm() {
+  $("#scene-form").style.display = "flex";
+  $("#add-scene-btn").style.display = "none";
+}
+function hideSceneForm() {
+  $("#scene-form").style.display = "none";
+  $("#add-scene-btn").style.display = "";
+  $("#scene-form").reset();
+  $("#scene-form").id.value = "";
+  $("#scene-style-custom").style.display = "none";
+  updateSummaryPremiseCounter();
+  stagedCastings = [];
+  refreshCastingCharacterSelect();
+}
+$("#add-scene-btn").addEventListener("click", showSceneForm);
+$("#cancel-scene-btn").addEventListener("click", hideSceneForm);
+
 $("#scene-form").addEventListener("submit", async e => {
   e.preventDefault();
   const f = e.target;
   const payload = {
-    name: f.name.value, setting_id: f.setting_id.value,
+    name: f.name.value, location_id: f.location_id.value,
     character_castings: stagedCastings,
     non_diegetic_music: f.non_diegetic_music.value,
     summary_premise: f.summary_premise.value,
     style_preset: f.style_preset.value,
-    prompt_format: f.prompt_format.value,
   };
   if (f.style_preset.value === "custom") payload.style_text = f.style_text.value;
   if (f.id.value) await api(`/scenes/${f.id.value}`, { method: "PUT", body: JSON.stringify(payload) });
   else await api("/scenes", { method: "POST", body: JSON.stringify(payload) });
-  f.reset(); f.id.value = "";
-  $("#scene-style-custom").style.display = "none";
-  updateSummaryPremiseCounter();
-  stagedCastings = [];
-  await refreshCastingCharacterSelect();
+  hideSceneForm();
   refreshScenes();
 });
 
@@ -441,7 +551,7 @@ $("#scene-form").addEventListener("submit", async e => {
 // Navigating to any other tab discards the whole working copy silently.
 let openSceneEditor = null;
 // shape: { sceneId, tabId, btn, panel, localScene, savedSnapshot,
-//          characters, settingLabel }
+//          characters, locationLabel }
 let deliveryOptions = [];  // cached [{key, label}] from the server
 
 async function loadDeliveryOptions() {
@@ -484,6 +594,23 @@ function localId(prefix) {
   return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
 }
 
+// Builds a URL for the /api/media endpoint, which serves a local file by
+// absolute path over HTTP -- browsers can't load arbitrary filesystem paths
+// directly in <img src>, so reference images route through this instead.
+function mediaUrl(path) {
+  return path ? `/api/media?path=${encodeURIComponent(path)}` : "";
+}
+
+// Shows just the last 2 folders + filename of an output path (Windows or
+// POSIX separators) -- full paths are long and not worth showing in full
+// inline; the complete path is still available via the element's title
+// tooltip on hover.
+function shortenOutputPath(path) {
+  if (!path) return "";
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts.length > 3 ? "…/" + parts.slice(-3).join("/") : path;
+}
+
 // ---------- timestamp widget: seconds + milliseconds, stored as "00:SS.mmm" ----------
 // Sequences are only ever 5-10s, so minutes are never meaningfully needed --
 // any legacy value with real minutes just gets folded into total seconds.
@@ -503,12 +630,36 @@ function formatTimestamp(sec, ms) {
   return `00:${String(secNum).padStart(2, "0")}.${String(msNum).padStart(3, "0")}`;
 }
 
-function beatFormFieldsHtml(charOptions, beat = null, isFirstShot = false) {
+// A beat starts a new shot unless is_new_shot is explicitly false, in which
+// case it folds into the shot started by the beat before it. The sequence's
+// first beat always starts Shot 1 regardless of its own flag -- mirrors
+// engine/prompt_compiler.py's _group_beats_into_shots exactly, so what's
+// shown here always matches what actually gets compiled.
+function computeShotInfo(beats) {
+  const info = {};
+  let shotN = 0;
+  beats.forEach((b, i) => {
+    const startsNew = i === 0 || b.is_new_shot !== false;
+    if (startsNew) shotN += 1;
+    info[b.id] = { shotN, isStart: startsNew };
+  });
+  return info;
+}
+
+function beatFormFieldsHtml(charOptions, beat = null, isVeryFirstBeat = false) {
   const kind = beat?.kind || "action";
   const isDialogue = kind === "dialogue";
+  const isNewShot = isVeryFirstBeat ? true : (beat ? beat.is_new_shot !== false : true);
   const { sec, ms } = parseTimestamp(beat?.timestamp);
-  const timestampField = isFirstShot ? "" : `
-    <div class="timestamp-widget">
+
+  const newShotToggle = isVeryFirstBeat
+    ? `<div class="meta">This is the sequence's first beat — it always starts Shot 1.</div>`
+    : `<label class="new-shot-toggle">
+         <input type="checkbox" name="beat_is_new_shot" ${isNewShot ? "checked" : ""}>
+         Starts a new shot
+       </label>`;
+  const timestampField = isVeryFirstBeat ? "" : `
+    <div class="timestamp-widget" style="display:${isNewShot ? "flex" : "none"}">
       <span class="timestamp-label">Timestamp into sequence</span>
       <input type="number" name="beat_timestamp_sec" min="0" step="1" placeholder="sec" value="${sec}">
       <span>.</span>
@@ -530,6 +681,7 @@ function beatFormFieldsHtml(charOptions, beat = null, isFirstShot = false) {
     <input type="text" name="beat_delivery_custom" placeholder="Describe the delivery (e.g. 'in a low, urgent whisper')"
       value="${customDeliveryValue}"
       style="display:${isDialogue && beat?.delivery_preset === "custom" ? "block" : "none"}">
+    ${newShotToggle}
     ${timestampField}
   `;
 }
@@ -541,7 +693,9 @@ function wireBeatFormBehavior(formEl) {
   const lineArea = formEl.querySelector('[name="beat_line"]');
   const deliverySelect = formEl.querySelector('[name="beat_delivery"]');
   const deliveryCustomInput = formEl.querySelector('[name="beat_delivery_custom"]');
-  const timestampSecInput = formEl.querySelector('[name="beat_timestamp_sec"]');  // absent for shot 1
+  const newShotCheckbox = formEl.querySelector('[name="beat_is_new_shot"]');  // absent for the very first beat
+  const timestampWidget = formEl.querySelector('.timestamp-widget');          // absent for the very first beat
+  const timestampSecInput = formEl.querySelector('[name="beat_timestamp_sec"]');
   const timestampMsInput = formEl.querySelector('[name="beat_timestamp_ms"]');
 
   function sync() {
@@ -551,14 +705,20 @@ function wireBeatFormBehavior(formEl) {
     lineArea.style.display = isDialogue ? "block" : "none";
     deliverySelect.style.display = isDialogue ? "block" : "none";
     deliveryCustomInput.style.display = (isDialogue && deliverySelect.value === "custom") ? "block" : "none";
+    if (timestampWidget) {
+      const isNewShot = newShotCheckbox ? newShotCheckbox.checked : true;
+      timestampWidget.style.display = isNewShot ? "flex" : "none";
+    }
   }
   kindSelect.addEventListener("change", sync);
   deliverySelect.addEventListener("change", sync);
+  if (newShotCheckbox) newShotCheckbox.addEventListener("change", sync);
 
   return {
     kindSelect, textArea, charSelect, lineArea, deliverySelect, deliveryCustomInput,
     collectPayload() {
       const kind = kindSelect.value;
+      const isNewShot = newShotCheckbox ? newShotCheckbox.checked : true;  // forced true for the first beat
       const payload = kind === "action"
         ? { kind: "action", text: textArea.value }
         : {
@@ -566,7 +726,12 @@ function wireBeatFormBehavior(formEl) {
             delivery_preset: deliverySelect.value,
           };
       if (kind === "dialogue" && deliverySelect.value === "custom") payload.delivery_text = deliveryCustomInput.value;
-      if (timestampSecInput) payload.timestamp = formatTimestamp(timestampSecInput.value, timestampMsInput.value);
+      payload.is_new_shot = isNewShot;
+      // A beat folding into the previous shot has no [Shot N] header of its
+      // own to attach a timestamp to -- keep it blank, matching the
+      // server-side rule in app.py's _normalize_shot_fields.
+      payload.timestamp = (timestampSecInput && isNewShot)
+        ? formatTimestamp(timestampSecInput.value, timestampMsInput.value) : "";
       return payload;
     },
   };
@@ -593,11 +758,13 @@ function deleteLocalSequence(seqId) {
     .sort((a, b) => a.index - b.index);
   seqs.forEach((s, i) => { s.index = i; });
   openSceneEditor.localScene.sequences = seqs;
+  openSceneEditor.openBeatForms.delete(seqId);
   renderSceneEditorPanel();
 }
 
 function addLocalBeat(seqId, payload) {
   const seq = openSceneEditor.localScene.sequences.find(s => s.id === seqId);
+  const isFirstBeat = seq.beats.length === 0;
   seq.beats.push({
     id: localId("beat"),
     kind: payload.kind,
@@ -608,6 +775,7 @@ function addLocalBeat(seqId, payload) {
     delivery_preset: payload.delivery_preset || "",
     delivery: "",  // resolved server-side on save
     delivery_text: payload.delivery_text || "",
+    is_new_shot: isFirstBeat ? true : (payload.is_new_shot !== false),
     timestamp: payload.timestamp || "",
   });
   renderSceneEditorPanel();
@@ -616,6 +784,7 @@ function addLocalBeat(seqId, payload) {
 function editLocalBeat(seqId, beatId, payload) {
   const seq = openSceneEditor.localScene.sequences.find(s => s.id === seqId);
   const beat = seq.beats.find(b => b.id === beatId);
+  const isFirstBeat = seq.beats[0] === beat;
   beat.kind = payload.kind;
   beat.text = payload.text || "";
   beat.character_id = payload.character_id || "";
@@ -623,6 +792,7 @@ function editLocalBeat(seqId, beatId, payload) {
   beat.delivery_preset = payload.delivery_preset || "";
   beat.delivery = "";  // re-resolved server-side on next save
   beat.delivery_text = payload.delivery_text || "";
+  beat.is_new_shot = isFirstBeat ? true : (payload.is_new_shot !== false);
   beat.timestamp = payload.timestamp || "";
   renderSceneEditorPanel();
 }
@@ -647,14 +817,14 @@ async function openSceneEditorTab(sceneId) {
   await loadDeliveryOptions();
   const scene = await api(`/scenes/${sceneId}`);
   const allChars = await api("/characters");
-  const allSettings = await api("/settings");
+  const allLocations = await api("/locations");
   const castedIds = new Set(scene.character_castings.map(c => c.character_id));
   const characters = allChars.filter(c => castedIds.has(c.id));
-  const setting = allSettings.find(s => s.id === scene.setting_id);
+  const location = allLocations.find(loc => loc.id === scene.location_id);
 
   const attireById = {};
   for (const c of allChars) for (const a of c.attire_options) attireById[a.id] = a;
-  const settingLabel = setting ? setting.name : "— none chosen —";
+  const locationLabel = location ? location.name : "— none chosen —";
   const charLabels = scene.character_castings.length
     ? scene.character_castings.map(casting => {
         const c = allChars.find(ch => ch.id === casting.character_id);
@@ -682,21 +852,75 @@ async function openSceneEditorTab(sceneId) {
     sceneId: scene.id, tabId, btn, panel,
     localScene: JSON.parse(JSON.stringify(scene)),
     savedSnapshot: JSON.parse(JSON.stringify(scene)),
-    characters, settingLabel, charLabels,
+    characters, locationLabel, charLabels,
+    runStatus: null, runPollTimer: null,
+    openBeatForms: new Set(),  // seq ids whose "add beat" form is currently expanded
+    promptFormat: "lean",  // live choice only -- not saved anywhere, sent fresh with
+                            // each Generate/Run request; see index.html item 4 in the
+                            // punch list for why this isn't a Scene/Sequence field
   };
 
+  await refreshRunStatus();
   renderSceneEditorPanel();
   activateTab(tabId);
 }
 
 function closeSceneEditor() {
   if (!openSceneEditor) return;
+  if (openSceneEditor.runPollTimer) clearInterval(openSceneEditor.runPollTimer);
   openSceneEditor.btn.remove();
   openSceneEditor.panel.remove();
   openSceneEditor = null;
 }
 
+// ---------- scene run: submit every un-rendered sequence to ComfyUI in
+// order, chaining each sequence's real output into the next one. Runs as a
+// background job on the server; this just polls its status. ----------
+async function refreshRunStatus() {
+  const ed = openSceneEditor;
+  if (!ed) return;
+  ed.runStatus = await api(`/scenes/${ed.sceneId}/run/status`);
+  if (ed.runStatus.state === "running") {
+    startRunPolling();
+  } else if (ed.runPollTimer) {
+    clearInterval(ed.runPollTimer);
+    ed.runPollTimer = null;
+  }
+}
+
+function startRunPolling() {
+  const ed = openSceneEditor;
+  if (!ed || ed.runPollTimer) return;
+  ed.runPollTimer = setInterval(async () => {
+    if (!openSceneEditor || openSceneEditor.sceneId !== ed.sceneId) {
+      clearInterval(ed.runPollTimer);
+      return;
+    }
+    await refreshRunStatus();
+    if (ed.runStatus.state !== "running") {
+      // run just finished (or errored/cancelled) -- pull the fresh scene
+      // so sequence status/output paths reflect what the server recorded
+      const fresh = await api(`/scenes/${ed.sceneId}`);
+      ed.localScene = JSON.parse(JSON.stringify(fresh));
+      ed.savedSnapshot = JSON.parse(JSON.stringify(fresh));
+    }
+    renderSceneEditorPanel();
+  }, 2500);
+}
+
 // ---------- rendering the panel from local state ----------
+function runSummaryText(run) {
+  if (run.state === "none") return "Not started — Run Scene submits every un-rendered sequence to ComfyUI in order.";
+  if (run.state === "running") {
+    const active = (run.sequences || []).find(s => s.state && !["pending", "rendered"].includes(s.state));
+    return active ? `Running — sequence #${active.index} (${active.state})…` : "Running…";
+  }
+  if (run.state === "done") return "Run complete — every sequence rendered.";
+  if (run.state === "error") return `Run stopped: ${run.error || "unknown error"}`;
+  if (run.state === "cancelled") return "Run cancelled.";
+  return "";
+}
+
 function renderSceneEditorPanel() {
   const ed = openSceneEditor;
   if (!ed) return;
@@ -706,60 +930,132 @@ function renderSceneEditorPanel() {
   const charOptions = ed.characters.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
   const sorted = [...scene.sequences].sort((a, b) => a.index - b.index);
 
+  const run = ed.runStatus || { state: "none" };
+  const running = run.state === "running";
+  const runSeqById = Object.fromEntries((run.sequences || []).map(s => [s.id, s]));
+  // Only trust the run-status overlay while a run is actually in progress --
+  // once it finishes (or was never started), it's a stale snapshot from
+  // whenever it was last fetched and shouldn't override the sequence's
+  // actual current status (e.g. after a manual status reset + save).
+  const badgeFor = seq => {
+    if (!running) return seq.status;
+    const entry = runSeqById[seq.id];
+    return (entry && entry.state && entry.state !== "pending") ? entry.state : seq.status;
+  };
+
   const sequencesHtml = sorted.map(seq => {
-    const beatsHtml = seq.beats.map((b, i) => `
+    const shotInfo = computeShotInfo(seq.beats);
+
+    const beatsHtml = seq.beats.map((b, i) => {
+      const info = shotInfo[b.id];
+      const shotLabel = info.isStart ? `Shot ${info.shotN}` : `Shot ${info.shotN} (cont.)`;
+      const tsLabel = info.isStart && info.shotN > 1 && b.timestamp ? ` · ${b.timestamp}` : "";
+      return `
       <div class="beat-row" data-beat-id="${b.id}">
-        <span class="beat-shot">Shot ${i + 1}${i > 0 && b.timestamp ? ` · ${b.timestamp}` : ""}</span>
+        <span class="beat-shot">${shotLabel}${tsLabel}</span>
         <span class="beat-kind">${b.kind === "action" ? "action" : "dialogue"}</span>
         <span class="beat-summary">${beatSummary(b, charById)}</span>
         <button data-move-up ${i === 0 ? "disabled" : ""} title="Move up">↑</button>
         <button data-move-down ${i === seq.beats.length - 1 ? "disabled" : ""} title="Move down">↓</button>
         <button data-edit-beat title="Edit">✎</button>
         <button data-remove-beat class="danger" title="Delete">×</button>
-      </div>`).join("") || `<div class="meta">No beats yet.</div>`;
+      </div>`;
+    }).join("") || `<div class="meta">No beats yet.</div>`;
+
+    const badge = badgeFor(seq);
+    const runEntry = running ? runSeqById[seq.id] : null;
+    const outputPath = (runEntry && runEntry.output_video_path) || seq.output_video_path;
+
+    const beatFormOpen = ed.openBeatForms.has(seq.id);
+    const addBeatHtml = beatFormOpen
+      ? `<form class="beat-form" data-seq-id="${seq.id}">
+           ${beatFormFieldsHtml(charOptions, null, seq.beats.length === 0)}
+           <div class="beat-form-actions">
+             <button type="submit" ${running ? "disabled" : ""}>Add Beat${seq.beats.length ? "" : " (Shot 1)"}</button>
+             <button type="button" data-cancel-add-beat>Cancel</button>
+           </div>
+         </form>`
+      : `<button type="button" class="add-beat-btn" data-open-add-beat ${running ? "disabled" : ""}>+ Add Beat</button>`;
 
     return `
       <div class="seq-card" data-seq-id="${seq.id}">
         <div><strong>#${seq.index}</strong> — ${seq.duration}s
-          <span class="status ${seq.status}">${seq.status}</span></div>
+          <span class="status ${badge}">${badge}</span></div>
         <div class="beats">${beatsHtml}</div>
 
-        <form class="beat-form">
-          ${beatFormFieldsHtml(charOptions, null, seq.beats.length === 0)}
-          <button type="submit">Add Beat (Shot ${seq.beats.length + 1})</button>
-        </form>
+        ${addBeatHtml}
 
         <div class="seq-actions">
-          <button data-generate>Generate workflow JSON</button>
-          <button data-resolve>Mark rendered / set output path</button>
-          <button data-delete-sequence class="danger">Delete sequence</button>
+          <button data-generate ${running ? "disabled" : ""}>Generate workflow JSON</button>
+          <button data-resolve ${running ? "disabled" : ""}>Mark rendered / set output path</button>
+          <button data-delete-sequence class="danger" ${running ? "disabled" : ""}>Delete sequence</button>
         </div>
-        <div class="meta" data-result></div>
+        <div class="meta output-path" data-result title="${outputPath || ""}">${outputPath ? `Output: ${shortenOutputPath(outputPath)}` : ""}</div>
       </div>`;
   }).join("");
 
   ed.panel.innerHTML = `
     <h2>${scene.name}</h2>
     <div class="scene-info">
-      <div><span class="info-label">Setting</span> ${ed.settingLabel}</div>
+      <div><span class="info-label">Location</span> ${ed.locationLabel}</div>
       <div><span class="info-label">Characters</span> ${ed.charLabels}</div>
       <div><span class="info-label">Premise</span> ${scene.summary_premise || "— none set —"}</div>
       <div><span class="info-label">Visual style</span> ${scene.style_opening || "— none set —"}</div>
-      <div><span class="info-label">Prompt format</span> ${scene.prompt_format === "full" ? "Full (six-section)" : "Lean (base-guide)"}</div>
+    </div>
+
+    <div class="save-bar prompt-format-bar">
+      <span class="save-bar-status">Prompt format used for Generate / Run Scene:</span>
+      <select id="scene-editor-prompt-format">
+        <option value="lean" ${ed.promptFormat === "lean" ? "selected" : ""}>Lean (base-guide style)</option>
+        <option value="full" ${ed.promptFormat === "full" ? "selected" : ""}>Full (six-section rewrite-guide style)</option>
+      </select>
     </div>
 
     <div class="save-bar ${dirty ? "dirty" : ""}">
-      <span class="save-bar-status">${dirty ? "Unsaved changes — switching tabs will discard them." : "All changes saved."}</span>
-      <button data-save-changes ${dirty ? "" : "disabled"}>Save Changes</button>
-      <button data-discard-changes ${dirty ? "" : "disabled"}>Discard Changes</button>
+      <span class="save-bar-status">${running
+        ? "A render run is in progress — saving is disabled until it finishes."
+        : (dirty ? "Unsaved changes — switching tabs will discard them." : "All changes saved.")}</span>
+      <button data-save-changes ${dirty && !running ? "" : "disabled"}>Save Changes</button>
+      <button data-discard-changes ${dirty && !running ? "" : "disabled"}>Discard Changes</button>
     </div>
 
-    <form id="sequence-form" class="entity-form">
-      <input type="number" name="duration" min="5" max="10" step="0.5" value="8" placeholder="Duration (5-10s)">
-      <button type="submit">Add Sequence</button>
+    <div class="save-bar run-bar ${running ? "dirty" : ""} ${run.state === "error" ? "run-error" : ""}">
+      <span class="save-bar-status">${runSummaryText(run)}</span>
+      ${running
+        ? `<button data-cancel-run>Cancel Run</button>`
+        : `<button data-run-scene ${dirty || !sorted.length ? "disabled" : ""}
+             title="${dirty ? "Save changes first" : ""}">Run Scene</button>`}
+    </div>
+
+    <div class="save-bar reset-status-bar">
+      <span class="save-bar-status">Clears every sequence's generated/rendered status and forgets their output paths, so they can be regenerated from scratch. Stays staged until you Save Changes.</span>
+      <button data-reset-sequence-status ${running || !sorted.some(s => s.status !== "pending" || s.output_video_path) ? "disabled" : ""}>Reset All Sequence Status</button>
+    </div>
+
+    <form id="sequence-form" class="sequence-add-form">
+      <label class="field-label" for="new-sequence-duration">Duration (sec)</label>
+      <input type="number" id="new-sequence-duration" name="duration" min="5" max="10" step="0.5" value="8">
+      <button type="submit" ${running ? "disabled" : ""}>Add Sequence</button>
     </form>
     <div id="sequence-list">${sequencesHtml}</div>
   `;
+
+  ed.panel.querySelector("[data-reset-sequence-status]")?.addEventListener("click", () => {
+    if (!confirm(
+      "Reset generated/rendered status for every sequence in this scene? " +
+      "Each sequence goes back to \"pending\" and forgets its recorded output path. " +
+      "This only affects Scene Forge's bookkeeping -- it doesn't delete any files already written to disk."
+    )) return;
+    ed.localScene.sequences.forEach(s => {
+      s.status = "pending";
+      s.output_video_path = "";
+    });
+    renderSceneEditorPanel();
+  });
+
+  ed.panel.querySelector("#scene-editor-prompt-format").addEventListener("change", e => {
+    ed.promptFormat = e.target.value;  // live only, no re-render needed
+  });
 
   // save bar
   ed.panel.querySelector("[data-save-changes]").onclick = async () => {
@@ -779,6 +1075,30 @@ function renderSceneEditorPanel() {
     renderSceneEditorPanel();
   };
 
+  // run bar
+  const runBtn = ed.panel.querySelector("[data-run-scene]");
+  if (runBtn) {
+    runBtn.onclick = async () => {
+      try {
+        await api(`/scenes/${ed.sceneId}/run`, {
+          method: "POST", body: JSON.stringify({ prompt_format: ed.promptFormat }),
+        });
+        await refreshRunStatus();
+        renderSceneEditorPanel();
+      } catch (err) { alert(err.message); }
+    };
+  }
+  const cancelRunBtn = ed.panel.querySelector("[data-cancel-run]");
+  if (cancelRunBtn) {
+    cancelRunBtn.onclick = async () => {
+      try {
+        await api(`/scenes/${ed.sceneId}/run/cancel`, { method: "POST" });
+        await refreshRunStatus();
+        renderSceneEditorPanel();
+      } catch (err) { alert(err.message); }
+    };
+  }
+
   // add-sequence form
   ed.panel.querySelector("#sequence-form").addEventListener("submit", e => {
     e.preventDefault();
@@ -789,13 +1109,29 @@ function renderSceneEditorPanel() {
   // per-sequence cards
   for (const seq of sorted) {
     const card = ed.panel.querySelector(`.seq-card[data-seq-id="${seq.id}"]`);
+    const beatFormOpen = ed.openBeatForms.has(seq.id);
 
-    const addForm = card.querySelector(".beat-form");
-    const addCtl = wireBeatFormBehavior(addForm);
-    addForm.addEventListener("submit", e => {
-      e.preventDefault();
-      addLocalBeat(seq.id, addCtl.collectPayload());
-    });
+    if (beatFormOpen) {
+      const addForm = card.querySelector(".beat-form");
+      const addCtl = wireBeatFormBehavior(addForm);
+      addForm.addEventListener("submit", e => {
+        e.preventDefault();
+        ed.openBeatForms.delete(seq.id);  // recollapse back to the "+ Add Beat" button
+        addLocalBeat(seq.id, addCtl.collectPayload());
+      });
+      addForm.querySelector("[data-cancel-add-beat]").onclick = () => {
+        ed.openBeatForms.delete(seq.id);
+        renderSceneEditorPanel();
+      };
+    } else {
+      const openBtn = card.querySelector("[data-open-add-beat]");
+      if (openBtn) {
+        openBtn.onclick = () => {
+          ed.openBeatForms.add(seq.id);
+          renderSceneEditorPanel();
+        };
+      }
+    }
 
     seq.beats.forEach((b, i) => {
       const row = card.querySelector(`.beat-row[data-beat-id="${b.id}"]`);
@@ -847,7 +1183,9 @@ function renderSceneEditorPanel() {
         return;
       }
       try {
-        const result = await api(`/scenes/${ed.sceneId}/sequences/${seq.id}/generate`, { method: "POST" });
+        const result = await api(`/scenes/${ed.sceneId}/sequences/${seq.id}/generate`, {
+          method: "POST", body: JSON.stringify({ prompt_format: ed.promptFormat }),
+        });
         card.querySelector("[data-result]").textContent = `Written to: ${result.workflow_path}`;
         const fresh = await api(`/scenes/${ed.sceneId}`);
         ed.localScene = JSON.parse(JSON.stringify(fresh));
@@ -883,10 +1221,43 @@ function renderSceneEditorPanel() {
   }
 }
 
+// ---------- config ----------
+async function refreshConfig() {
+  const cfg = await api("/config");
+  const f = $("#config-form");
+  f.comfyui_url.value = cfg.comfyui_url || "";
+  f.comfyui_output_dir.value = cfg.comfyui_output_dir || "";
+  f.comfyui_input_dir.value = cfg.comfyui_input_dir || "";
+  f.poll_interval.value = cfg.poll_interval ?? "";
+  f.timeout_seconds.value = cfg.timeout_seconds ?? "";
+}
+
+$("#config-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target;
+  const statusEl = $("#config-status");
+  const payload = {
+    comfyui_url: f.comfyui_url.value,
+    comfyui_output_dir: f.comfyui_output_dir.value,
+    comfyui_input_dir: f.comfyui_input_dir.value,
+    poll_interval: parseFloat(f.poll_interval.value),
+    timeout_seconds: parseFloat(f.timeout_seconds.value),
+  };
+  try {
+    await api("/config", { method: "PUT", body: JSON.stringify(payload) });
+    statusEl.textContent = "Saved.";
+    statusEl.classList.remove("error-text");
+  } catch (err) {
+    statusEl.textContent = err.message;
+    statusEl.classList.add("error-text");
+  }
+});
+
 // ---------- init ----------
 refreshCharacters();
-refreshSettings();
+refreshLocations();
 refreshScenes();
-refreshSceneSettingSelect();
+refreshSceneLocationSelect();
 refreshSceneStyleSelect();
 refreshCastingCharacterSelect();
+refreshConfig();

@@ -4,7 +4,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from engine.models import Character, Setting, Sequence, Scene, Beat, AttireOption
+from engine.models import Character, Location, Sequence, Scene, Beat, AttireOption
 from engine.template_engine import generate_sequence_workflow, TemplateEngineError
 from engine.prompt_compiler import compile_prompt, compile_lean_prompt
 
@@ -35,7 +35,7 @@ def check_workflow_integrity(wf):
 def run():
     template = load_template()
 
-    setting = Setting.create(
+    location = Location.create(
         "Star Trek Hallway",
         reference_image="/abs/path/hallway.png",
         visual_description="a sleek starship corridor with pulsing blue accent lighting and metallic paneling",
@@ -62,7 +62,7 @@ def run():
     )
 
     scene = Scene.create(
-        "Corridor Standoff", setting_id=setting.id,
+        "Corridor Standoff", location_id=location.id,
         character_castings=[],  # not used directly by the engine test below
         non_diegetic_music="A tense, low string ostinato builds slowly underneath the scene.",
         summary_premise="Grant confronts Zara in the corridor after discovering the breach, "
@@ -94,7 +94,7 @@ def run():
 
     # --- Test 1: single character, first sequence (no previous frame) ---
     wf1, prefix1 = generate_sequence_workflow(
-        template, setting=setting, characters=[grant], sequence=seq0, scene=scene,
+        template, location=location, characters=[grant], sequence=seq0, scene=scene,
         attire_by_char_id=attire_by_char_id,
         previous_output_path=None,
     )
@@ -110,7 +110,7 @@ def run():
 
     # --- Test 2: two characters, second sequence (chains from previous) ---
     wf2, prefix2 = generate_sequence_workflow(
-        template, setting=setting, characters=[grant, zara], sequence=seq1, scene=scene,
+        template, location=location, characters=[grant, zara], sequence=seq1, scene=scene,
         attire_by_char_id=attire_by_char_id,
         previous_output_path="/abs/path/output/video/scene_x/00_seq_0001_00001.mp4",
     )
@@ -228,8 +228,8 @@ def run():
     print("[OK] detailed_description opens with the scene's chosen style, not generic filler")
 
     assert "The shot establishes <Subject 1>, a sleek starship corridor" in prompt_text, \
-        "Shot 1 should prepend the setting's establishing sentence, reusing its subject_definitions description"
-    print("[OK] setting's establishing sentence correctly prepended to [Shot 1]")
+        "Shot 1 should prepend the location's establishing sentence, reusing its subject_definitions description"
+    print("[OK] location's establishing sentence correctly prepended to [Shot 1]")
 
     # ---- Character first-appearance redescription: once, at first shot only ----
     shot1_text = [l for l in prompt_text.splitlines() if l.startswith("[Shot 1]")][0]
@@ -249,15 +249,15 @@ def run():
     print("[OK] character redescription happens once, at first appearance only, with (Sx) when they speak later")
 
     # ---- Direct unit check: first appearance in a LATER shot, not Shot 1 ----
-    late_setting = Setting.create("Empty Room", visual_description="a bare white room")
+    late_location = Location.create("Empty Room", visual_description="a bare white room")
     late_char = Character.create("Nadia", appearance_description="a tall woman with a red coat")
     late_seq = Sequence(id="seq_late", index=0, duration=8.0, beats=[
         Beat.create("action", text="The room sits empty and quiet."),
         Beat.create("action", text="Nadia steps into the doorway."),
     ])
-    late_scene = Scene.create("Late Entrance", setting_id=late_setting.id)
+    late_scene = Scene.create("Late Entrance", location_id=late_location.id)
     late_prompt = compile_prompt(
-        setting=late_setting, characters=[late_char], sequence=late_seq, scene=late_scene,
+        location=late_location, characters=[late_char], sequence=late_seq, scene=late_scene,
         character_slots={}, attire_by_char_id={},
     )
     shot1_late = [l for l in late_prompt.splitlines() if l.startswith("[Shot 1]")][0]
@@ -277,7 +277,7 @@ def run():
         Beat.create("action", text="Extra watches from the doorway."),
     ])
     wf3, _ = generate_sequence_workflow(
-        template, setting=setting, characters=[no_attire_char], sequence=seq2, scene=scene,
+        template, location=location, characters=[no_attire_char], sequence=seq2, scene=scene,
         attire_by_char_id={},  # no entry at all for this character
         previous_output_path=None,
     )
@@ -295,7 +295,7 @@ def run():
         Beat.create("action", text="Silent Guy enters without a word."),
     ])
     wf4, _ = generate_sequence_workflow(
-        template, setting=setting, characters=[silent_char], sequence=seq3, scene=scene,
+        template, location=location, characters=[silent_char], sequence=seq3, scene=scene,
         attire_by_char_id={silent_char.id: silent_char.default_attire()},
         previous_output_path=None,
     )
@@ -326,7 +326,7 @@ def run():
         Beat.create("dialogue", character_id=many_chars[3].id, line="Four."),
     ])
     try:
-        generate_sequence_workflow(template, setting=setting, characters=many_chars, sequence=seq4,
+        generate_sequence_workflow(template, location=location, characters=many_chars, sequence=seq4,
                                     scene=scene, attire_by_char_id=many_attire)
         raise AssertionError("expected TemplateEngineError for exceeding the audio-reference cap")
     except TemplateEngineError as e:
@@ -350,7 +350,7 @@ def run():
         Beat.create("dialogue", character_id=small_cast[0].id, line="Only one speaks."),
         Beat.create("action", text="The rest just stand there."),
     ])
-    wf5, _ = generate_sequence_workflow(template, setting=setting, characters=small_cast, sequence=seq5,
+    wf5, _ = generate_sequence_workflow(template, location=location, characters=small_cast, sequence=seq5,
                                          scene=scene, attire_by_char_id=small_attire)
     check_workflow_integrity(wf5)
     voice_node_titles = [n["title"] for n in wf5["nodes"] if str(n.get("title", "")).startswith("Voice:")]
@@ -361,7 +361,7 @@ def run():
 
     # ---- Lean (base-guide-style) prompt format: dedicated coverage ----
     lean_scene = Scene.create(
-        "Corridor Standoff (Lean)", setting_id=setting.id,
+        "Corridor Standoff (Lean)", location_id=location.id,
         summary_premise="Grant confronts Zara in the corridor after discovering the breach.",
         style_opening="The target video has a futuristic sci-fi look with cool blue and neon "
                        "accent lighting against dark environments.",
@@ -369,7 +369,7 @@ def run():
         prompt_format="lean",
     )
     lean_wf, _ = generate_sequence_workflow(
-        template, setting=setting, characters=[grant, zara], sequence=seq1, scene=lean_scene,
+        template, location=location, characters=[grant, zara], sequence=seq1, scene=lean_scene,
         attire_by_char_id=attire_by_char_id,
         previous_output_path="/abs/path/output/video/scene_x/00_seq_0001_00001.mp4",
     )
@@ -391,7 +391,7 @@ def run():
         "For the target video, at 0.00 seconds into the target video, <Picture"
     ), lean_prompt[:120]
     assert "(from [Shot 1]) is fully referenced." in lean_prompt
-    # Character/setting names stay as names, not replaced by tags
+    # Character/location names stay as names, not replaced by tags
     assert "Grant" in lean_prompt and "Zara" in lean_prompt
     # Picture/Audio citations still present (mechanically required by the Ref2VA node)
     assert "shown in <Picture" in lean_prompt

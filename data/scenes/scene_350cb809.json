@@ -1,0 +1,228 @@
+{
+  "id": "scene_350cb809",
+  "name": "Picard uses a replicator",
+  "location_id": "set_29800951",
+  "character_castings": [
+    {
+      "character_id": "char_d91bda0c",
+      "attire_id": ""
+    },
+    {
+      "character_id": "char_4a9859be",
+      "attire_id": "attire_e6e100a0"
+    }
+  ],
+  "non_diegetic_music": "",
+  "summary_premise": "Jean-Luc Picard gets help ordering from a replicator.",
+  "style_preset": "",
+  "style_opening": "",
+  "sequences": [
+    {
+      "id": "seq_ef3cbb8b",
+      "index": 0,
+      "duration": 8.0,
+      "beats": [
+        {
+          "id": "beat_1d91ae54",
+          "kind": "action",
+          "text": "Captain Picard of the starship enterprise is in Ten Forward. He walks up to a replicator.",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": true,
+          "timestamp": ""
+        },
+        {
+          "id": "beat_736c0b90",
+          "kind": "dialogue",
+          "text": "",
+          "character_id": "char_d91bda0c",
+          "line": "Computer, one sports drink, blue.",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": false,
+          "timestamp": ""
+        },
+        {
+          "id": "beat_33b89212",
+          "kind": "action",
+          "text": "The computer responds with error beeps followed by <d>[English] Error - blue is not a flavor</d> ",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": false,
+          "timestamp": ""
+        },
+        {
+          "id": "beat_db15615d",
+          "kind": "action",
+          "text": "Picard checks behind him",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": false,
+          "timestamp": ""
+        }
+      ],
+      "status": "rendered",
+      "output_video_path": "C:\\Users\\grant\\OneDrive\\Desktop\\comfyui\\ComfyUI\\output\\picard_uses_a_replicator\\picard_uses_a_replicator_1_00001_.mp4"
+    },
+    {
+      "id": "seq_782edc38",
+      "index": 1,
+      "duration": 8.0,
+      "beats": [
+        {
+          "id": "beat_4959dba5",
+          "kind": "action",
+          "text": "Captain Picard of the starship enterprise is in Ten Forward. He is beside a replicator. he is quietly considering his options now that he failed ordering.",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": true,
+          "timestamp": ""
+        },
+        {
+          "id": "beat_1ce60618",
+          "kind": "action",
+          "text": "Michael Scott from the Office as portrayed by Steve Carell who is also wearing a Captains uniform, walks up to Captain Picard at the replicator.",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": true,
+          "timestamp": "00:02.000"
+        },
+        {
+          "id": "beat_71b2cedb",
+          "kind": "action",
+          "text": "Michael Scott as portrayed by Steve Carrell clears his throat",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": false,
+          "timestamp": ""
+        },
+        {
+          "id": "beat_bcf18702",
+          "kind": "dialogue",
+          "text": "",
+          "character_id": "char_4a9859be",
+          "line": "One sports drink, Blue Blast",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": false,
+          "timestamp": ""
+        },
+        {
+          "id": "beat_13a8eb96",
+          "kind": "action",
+          "text": "The Camera cuts to the replicator. Sparkles appear, and the replicator generates a blue sports drink which phases into existance.",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": true,
+          "timestamp": "00:04.000"
+        },
+        {
+          "id": "beat_d5d2bce2",
+          "kind": "action",
+          "text": "The camera cuts back to Captain Picard, who is with Micahel Scott.  Captain Picard gives a quizzical look",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": true,
+          "timestamp": "00:07.000"
+        }
+      ],
+      "status": "generated",
+      "output_video_path": ""
+    },
+    {
+      "id": "seq_8b1decbf",
+      "index": 2,
+      "duration": 8.0,
+      "beats": [
+        {
+          "id": "beat_66919fb6",
+          "kind": "action",
+          "text": "Captain Picard of the starship enterprise is with Michael Scott from the Office as portrayed by Steve Carrell, they are in Ten Forward. They are beside a replicator.",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": true,
+          "timestamp": ""
+        },
+        {
+          "id": "beat_30b4f8c7",
+          "kind": "action",
+          "text": "Michael Scott pats Captain Picard on the back.",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": true,
+          "timestamp": ""
+        },
+        {
+          "id": "beat_0eddf9f4",
+          "kind": "dialogue",
+          "text": "",
+          "character_id": "char_4a9859be",
+          "line": "They say wisdom comes with time.",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": false,
+          "timestamp": ""
+        },
+        {
+          "id": "beat_fbdaa978",
+          "kind": "action",
+          "text": "Michael Scott walks out of frame.",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": false,
+          "timestamp": ""
+        },
+        {
+          "id": "beat_f47014ef",
+          "kind": "action",
+          "text": "Captain Picard takes the sports drink from the replicator, and drinks it.",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "is_new_shot": false,
+          "timestamp": ""
+        }
+      ],
+      "status": "pending",
+      "output_video_path": ""
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 {
   "id": "e3f2b845-8f2c-4b5a-9caf-eac1029d3e7e",
   "revision": 0,
-  "last_node_id": 154,
-  "last_link_id": 304,
+  "last_node_id": 153,
+  "last_link_id": 303,
   "nodes": [
     {
       "id": 120,
@@ -523,7 +523,7 @@
       ],
       "properties": {},
       "widgets_values": [
-        "video/scene_22ac7963/02_seq_1f51c8dc",
+        "picard_uses_a_replicator/picard_uses_a_replicator_2",
         "auto",
         "auto"
       ]
@@ -557,12 +557,12 @@
           "links": null
         }
       ],
-      "title": "Setting: Starship Bridge",
+      "title": "Location: Ten Forward",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "tng bridge occupied.png",
+        "tenforward.png",
         "image"
       ]
     },
@@ -629,7 +629,7 @@
           "name": "ref_images.ref_image_4",
           "shape": 7,
           "type": "IMAGE",
-          "link": 302
+          "link": 303
         },
         {
           "label": "ref_video_0",
@@ -650,7 +650,7 @@
           "name": "ref_audios.ref_audio_0",
           "shape": 7,
           "type": "AUDIO",
-          "link": null
+          "link": 302
         },
         {
           "label": "ref_audio_1",
@@ -690,20 +690,6 @@
             "name": "length"
           },
           "link": 275
-        },
-        {
-          "label": "ref_image_5",
-          "name": "ref_images.ref_image_5",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 303
-        },
-        {
-          "label": "ref_image_6",
-          "name": "ref_images.ref_image_6",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 304
         }
       ],
       "outputs": [
@@ -806,7 +792,7 @@
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "For the target video, at 0.00 seconds into the target video, <Picture 2> (from [Shot 1]) is fully referenced.\n\nThe bridge crew is present when Jean-Luc goes off the rails.\n\nThe target video is in a cinematic, literary style with soft lighting and a slightly desaturated color palette.\n\nintegrated_multimodal_description:\n[Shot 1] A shot establishes the Starship Bridge shown in <Picture 1>, preserving A starship bridge.. Jean-Luc Picard, shown in <Picture 3> appears. William T. Riker, shown in <Picture 4> appears. Deanna Troi, shown in <Picture 6> appears. Jean-Luc Picard is sitting in his captains chair on the bridge of the starship Enterprise. On either side of him, is William T. Riker and Deanna Troi.\n[Shot 2] Jean-Luc Picard (S1) says in a flat, deadpan tone: <d>[English] Fine. I would really rather be looking at tits though.</d>\n[Shot 3] William T. Riker (S2) says in an urgent, rushed tone: <d>[English] Captain!</d>\n[Shot 4] Jean-Luc Picard (S1) says: <d>[English] Computer. On Screen.</d>\n[Shot 5] The camera now cuts to the viewscreen of the starship enterprise. It shows the alien with 3 tits from total recall.\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A"
+        "For the target video, at 0.00 seconds into the target video, <Picture 2> (from [Shot 1]) is fully referenced.\n\nJean-Luc Picard gets help ordering from a replicator.\n\nintegrated_multimodal_description:\n[Shot 1] A shot establishes the Ten Forward shown in <Picture 1>, preserving The crew bar aboard the starship Enterprise.. Captain Picard of the starship enterprise is in Ten Forward. He is beside a replicator. he is quietly considering his options now that he failed ordering.\n[Shot 2] At 00:02.000, Michael Scott, shown in <Picture 4> and <Picture 5> and voiced by <Audio 1> appears. Michael Scott from the Office as portrayed by Steve Carell who is also wearing a Captains uniform, walks up to Captain Picard at the replicator. Michael Scott as portrayed by Steve Carrell clears his throat Michael Scott (S1) says: <d>[English] One sports drink, Blue Blast</d>\n[Shot 3] At 00:04.000, The Camera cuts to the replicator. Sparkles appear, and the replicator generates a blue sports drink which phases into existance.\n[Shot 4] At 00:07.000, The camera cuts back to Captain Picard, who is with Micahel Scott.  Captain Picard gives a quizzical look\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A"
       ],
       "color": "#322",
       "bgcolor": "#533"
@@ -943,7 +929,7 @@
         "Node name for S&R": "FirstFrameLastFrameExtractor"
       },
       "widgets_values": [
-        "C:\\Users\\grant\\OneDrive\\Desktop\\comfyui\\ComfyUI\\output\\video\\scene_22ac7963\\01_seq_6108b0a1_00002_.mp4"
+        "C:\\Users\\grant\\OneDrive\\Desktop\\comfyui\\ComfyUI\\output\\picard_uses_a_replicator\\picard_uses_a_replicator_1_00001_.mp4"
       ]
     },
     {
@@ -1009,64 +995,60 @@
           "links": null
         }
       ],
-      "title": "Face: William T. Riker",
+      "title": "Face: Michael Scott",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "rikerface.png",
+        "michael scott.png",
         "image"
       ]
     },
     {
       "id": 152,
-      "type": "LoadImage",
+      "type": "LoadAudio",
       "pos": [
-        -1411.2044098763213,
-        4221.375160838343
+        -2044.245821250579,
+        4612.492037079445
       ],
       "size": [
-        290,
-        330
+        282.78125,
+        138
       ],
       "flags": {},
-      "order": 7,
+      "order": 11,
       "mode": 0,
       "inputs": [],
       "outputs": [
         {
-          "name": "IMAGE",
-          "type": "IMAGE",
+          "name": "AUDIO",
+          "type": "AUDIO",
           "links": []
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
         }
       ],
-      "title": "Face: Worf",
+      "title": "Voice: Michael Scott",
       "properties": {
-        "Node name for S&R": "LoadImage"
+        "Node name for S&R": "LoadAudio"
       },
       "widgets_values": [
-        "worf.png",
-        "image"
+        "michaelaudio.wav",
+        null,
+        null
       ]
     },
     {
       "id": 153,
       "type": "LoadImage",
       "pos": [
-        -592.7539284224076,
-        4221.375160838343
+        -1872.718137869574,
+        4225.682491880535
       ],
       "size": [
         290,
         330
       ],
       "flags": {},
-      "order": 7,
+      "order": 13,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1081,48 +1063,12 @@
           "links": null
         }
       ],
-      "title": "Face: Deanna Troi",
+      "title": "Attire: Michael Scott (Starfleet Captain Uniform)",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "troiface.png",
-        "image"
-      ]
-    },
-    {
-      "id": 154,
-      "type": "LoadImage",
-      "pos": [
-        225.69655303150603,
-        4221.375160838343
-      ],
-      "size": [
-        290,
-        330
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": []
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "title": "Face: Geordi La Forge",
-      "properties": {
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "geordiface.png",
+        "michael_attire.png",
         "image"
       ]
     }
@@ -1349,23 +1295,15 @@
       152,
       0,
       136,
-      7,
-      "IMAGE"
+      10,
+      "AUDIO"
     ],
     [
       303,
       153,
       0,
       136,
-      16,
-      "IMAGE"
-    ],
-    [
-      304,
-      154,
-      0,
-      136,
-      17,
+      7,
       "IMAGE"
     ]
   ],
@@ -1444,45 +1382,9 @@
     },
     {
       "id": 8,
-      "title": "Character (William T. Riker)",
+      "title": "Character (Michael Scott)",
       "bounding": [
         -2268.5746122767646,
-        4124.857593177093,
-        738.4504814539137,
-        695.6445574329528
-      ],
-      "color": "#3f789e",
-      "flags": {}
-    },
-    {
-      "id": 9,
-      "title": "Character (Worf)",
-      "bounding": [
-        -1450.124130822851,
-        4124.857593177093,
-        738.4504814539137,
-        695.6445574329528
-      ],
-      "color": "#3f789e",
-      "flags": {}
-    },
-    {
-      "id": 10,
-      "title": "Character (Deanna Troi)",
-      "bounding": [
-        -631.6736493689373,
-        4124.857593177093,
-        738.4504814539137,
-        695.6445574329528
-      ],
-      "color": "#3f789e",
-      "flags": {}
-    },
-    {
-      "id": 11,
-      "title": "Character (Geordi La Forge)",
-      "bounding": [
-        186.77683208497638,
         4124.857593177093,
         738.4504814539137,
         695.6445574329528

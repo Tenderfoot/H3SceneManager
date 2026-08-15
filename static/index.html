@@ -9,8 +9,9 @@
 <header>
   <h1>Scene Forge</h1>
   <nav>
+    <button data-tab="config" class="tab">Config</button>
     <button data-tab="characters" class="tab active">Characters</button>
-    <button data-tab="settings" class="tab">Settings</button>
+    <button data-tab="locations" class="tab">Locations</button>
     <button data-tab="scenes" class="tab">Scenes</button>
   </nav>
 </header>
@@ -18,7 +19,8 @@
 <main>
   <section id="tab-characters" class="tab-panel active">
     <h2>Characters</h2>
-    <form id="character-form" class="entity-form">
+    <button type="button" id="add-character-btn">+ Add Character</button>
+    <form id="character-form" class="entity-form" style="display:none">
       <input type="hidden" name="id">
       <input type="text" name="name" placeholder="Name" required>
 
@@ -28,8 +30,8 @@
         <input type="text" name="category_new" id="character-category-new" placeholder="New category name" style="display:none">
       </div>
 
-      <input type="text" name="face_image" placeholder="Absolute path to face reference image">
-      <input type="text" name="voice_audio" placeholder="Absolute path to voice reference audio">
+      <input type="text" name="face_image" placeholder="Filename in ComfyUI's input/ dir (or an absolute path)">
+      <input type="text" name="voice_audio" placeholder="Filename in ComfyUI's input/ dir (or an absolute path)">
       <textarea name="appearance_description" placeholder="Visual appearance for the prompt (hair, build, face -- not clothing)"></textarea>
 
       <div class="attire-editor">
@@ -39,38 +41,46 @@
       </div>
 
       <textarea name="properties" placeholder='Other custom properties as JSON, e.g. {"personality": "wry, guarded"}'></textarea>
-      <button type="submit">Save Character</button>
+      <div class="scene-form-actions">
+        <button type="submit">Save Character</button>
+        <button type="button" id="cancel-character-btn">Cancel</button>
+      </div>
     </form>
     <div id="character-list" class="entity-list"></div>
   </section>
 
-  <section id="tab-settings" class="tab-panel">
-    <h2>Settings</h2>
-    <form id="setting-form" class="entity-form">
+  <section id="tab-locations" class="tab-panel">
+    <h2>Locations</h2>
+    <button type="button" id="add-location-btn">+ Add Location</button>
+    <form id="location-form" class="entity-form" style="display:none">
       <input type="hidden" name="id">
       <input type="text" name="name" placeholder="Name" required>
 
       <div class="field-group">
-        <label class="field-label" for="setting-category-select">Category</label>
-        <select name="category_select" id="setting-category-select"></select>
-        <input type="text" name="category_new" id="setting-category-new" placeholder="New category name" style="display:none">
+        <label class="field-label" for="location-category-select">Category</label>
+        <select name="category_select" id="location-category-select"></select>
+        <input type="text" name="category_new" id="location-category-new" placeholder="New category name" style="display:none">
       </div>
 
-      <input type="text" name="reference_image" placeholder="Absolute path to reference image">
-      <textarea name="visual_description" placeholder="Visual description of the environment for the prompt"></textarea>
+      <input type="text" name="reference_image" placeholder="Filename in ComfyUI's input/ dir (or an absolute path)">
+      <textarea name="visual_description" placeholder="Visual description of the location for the prompt"></textarea>
       <textarea name="soundscape_description" placeholder="overall_soundscape text, e.g. 'A low ambient hum continues throughout.'"></textarea>
       <textarea name="properties" placeholder='Other custom properties as JSON'></textarea>
-      <button type="submit">Save Setting</button>
+      <div class="scene-form-actions">
+        <button type="submit">Save Location</button>
+        <button type="button" id="cancel-location-btn">Cancel</button>
+      </div>
     </form>
-    <div id="setting-list" class="entity-list"></div>
+    <div id="location-list" class="entity-list"></div>
   </section>
 
   <section id="tab-scenes" class="tab-panel">
     <h2>Scenes</h2>
-    <form id="scene-form" class="entity-form">
+    <button type="button" id="add-scene-btn">+ Add Scene</button>
+    <form id="scene-form" class="entity-form" style="display:none">
       <input type="hidden" name="id">
       <input type="text" name="name" placeholder="Scene name" required>
-      <select name="setting_id" id="scene-setting-select"></select>
+      <select name="location_id" id="scene-location-select"></select>
 
       <div class="casting-builder">
         <div class="casting-builder-label">Characters in this scene</div>
@@ -86,18 +96,11 @@
       <div class="field-group">
         <label class="field-label" for="scene-summary-premise">Scene premise (for the prompt's "summary" section)</label>
         <p class="field-hint">
-          Keep this short and tag-based, not a retelling of the scene: describe the overall
-          reference relationships in a sentence or two (e.g. "Grant and Zara meet and walk
-          together down the corridor"). Don't restate specific dialogue or actions that already
-          live in your beats below -- those get written out in full detail elsewhere in the
-          prompt. Character and setting names you type here get automatically swapped for their
-          <code>&lt;Subject N&gt;</code> tags. The reference-type bracket (e.g.
-          <code>[reference generation + audio reference]</code>) is added automatically too --
-          just write the plain premise.
+          Two sentence summary, very vague, less than 128 chars. Leave any actions to the sequence.
         </p>
         <textarea name="summary_premise" id="scene-summary-premise"
           placeholder="e.g. Grant confronts Zara in the corridor after discovering the breach."></textarea>
-        <div id="summary-premise-counter" class="char-counter">0 / 250</div>
+        <div id="summary-premise-counter" class="char-counter">0 / 128</div>
       </div>
 
       <div class="field-group">
@@ -108,22 +111,53 @@
 
       <textarea name="non_diegetic_music" placeholder="Background score description (non_diegetic_music), audible only to the audience"></textarea>
 
-      <div class="field-group">
-        <label class="field-label" for="scene-prompt-format">Prompt format</label>
-        <p class="field-hint">
-          Lean uses MiniMax's base prompt guide (leaner, no reference-analysis scaffolding --
-          experimental, since H3 has no local rewriter to produce that scaffolding from anyway).
-          Full uses the six-section full-reference rewrite-guide format documented for Ref2VA.
-        </p>
-        <select name="prompt_format" id="scene-prompt-format">
-          <option value="lean">Lean (base-guide style)</option>
-          <option value="full">Full (six-section rewrite-guide style)</option>
-        </select>
+      <div class="scene-form-actions">
+        <button type="submit">Save Scene</button>
+        <button type="button" id="cancel-scene-btn">Cancel</button>
       </div>
-
-      <button type="submit">Save Scene</button>
     </form>
     <div id="scene-list" class="entity-list"></div>
+  </section>
+
+  <section id="tab-config" class="tab-panel">
+    <h2>Config</h2>
+    <p class="field-hint">
+      Connection settings for the ComfyUI instance the "Run Scene" feature submits to.
+      Saved to <code>data/config.json</code> and take effect immediately -- no restart needed.
+    </p>
+    <form id="config-form" class="entity-form">
+      <div class="field-group">
+        <label class="field-label" for="config-comfyui-url">ComfyUI URL</label>
+        <input type="text" name="comfyui_url" id="config-comfyui-url" placeholder="http://127.0.0.1:8188">
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="config-output-dir">ComfyUI output directory</label>
+        <p class="field-hint">
+          Must be the SAME directory your ComfyUI install writes rendered output to -- Scene Forge
+          reads it directly to confirm a render landed and record its path for chaining.
+        </p>
+        <input type="text" name="comfyui_output_dir" id="config-output-dir" placeholder="/path/to/ComfyUI/output">
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="config-input-dir">ComfyUI input directory</label>
+        <p class="field-hint">
+          Where ComfyUI's LoadImage/LoadAudio nodes look for reference files. Scene Forge doesn't
+          read or write here -- it's just a reminder of where to browse from when picking a face,
+          attire, voice, or location reference path.
+        </p>
+        <input type="text" name="comfyui_input_dir" id="config-input-dir" placeholder="/path/to/ComfyUI/input">
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="config-poll-interval">Poll interval (seconds)</label>
+        <input type="number" name="poll_interval" id="config-poll-interval" min="0.5" step="0.5">
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="config-timeout">Render timeout (seconds)</label>
+        <input type="number" name="timeout_seconds" id="config-timeout" min="1" step="1">
+      </div>
+      <button type="submit">Save Config</button>
+    </form>
+    <div id="config-status" class="meta"></div>
   </section>
 </main>
 
