@@ -1,0 +1,29 @@
+# Local data -- authored content and generated output, not meant to be
+# version-controlled. Folder structure is kept via .gitkeep so a fresh
+# clone still has these directories; everything inside them is ignored.
+data/characters/*
+!data/characters/.gitkeep
+
+data/locations/*
+!data/locations/.gitkeep
+
+data/scenes/*
+!data/scenes/.gitkeep
+
+data/generated_workflows/*
+!data/generated_workflows/.gitkeep
+
+# Machine-specific ComfyUI paths/settings -- not meant to be shared
+data/config.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# OS cruft
+.DS_Store
+Thumbs.db
