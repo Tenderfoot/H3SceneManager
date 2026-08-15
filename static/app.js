@@ -1054,7 +1054,7 @@ function renderSceneEditorPanel() {
     if (!confirm(
       "Reset generated/rendered status for every sequence in this scene? " +
       "Each sequence goes back to \"pending\" and forgets its recorded output path. " +
-      "This only affects Scene Forge's bookkeeping -- it doesn't delete any files already written to disk."
+      "This only affects H3SceneManager's bookkeeping -- it doesn't delete any files already written to disk."
     )) return;
     ed.localScene.sequences.forEach(s => {
       s.status = "pending";

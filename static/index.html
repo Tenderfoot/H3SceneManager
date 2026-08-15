@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Scene Forge</title>
+<title>H3SceneManager</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
-  <h1>Scene Forge</h1>
+  <h1>H3SceneManager</h1>
   <nav>
     <button data-tab="config" class="tab">Config</button>
     <button data-tab="characters" class="tab active">Characters</button>
@@ -130,7 +130,7 @@
       <div class="field-group">
         <label class="field-label" for="config-output-dir">ComfyUI output directory</label>
         <p class="field-hint">
-          Must be the SAME directory your ComfyUI install writes rendered output to -- Scene Forge
+          Must be the SAME directory your ComfyUI install writes rendered output to -- H3SceneManager
           reads it directly to confirm a render landed and record its path for chaining.
         </p>
         <input type="text" name="comfyui_output_dir" id="config-output-dir" placeholder="/path/to/ComfyUI/output">
@@ -138,7 +138,7 @@
       <div class="field-group">
         <label class="field-label" for="config-input-dir">ComfyUI input directory</label>
         <p class="field-hint">
-          Where ComfyUI's LoadImage/LoadAudio nodes look for reference files. Scene Forge doesn't
+          Where ComfyUI's LoadImage/LoadAudio nodes look for reference files. H3SceneManager doesn't
           read or write here -- it's just a reminder of where to browse from when picking a face,
           voice, or location reference path.
         </p>

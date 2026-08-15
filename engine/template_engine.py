@@ -264,7 +264,7 @@ def generate_sequence_workflow(template, *, location, characters, sequence, scen
         noise_seed with a fresh random value on every call. Needed because
         that node's "control_after_generate": "randomize" widget is a
         ComfyUI-FRONTEND-only convenience -- it does nothing when a workflow
-        is submitted directly via the API, which is what Scene Forge always
+        is submitted directly via the API, which is what H3SceneManager always
         does. Without this, regenerating the same sequence unchanged submits
         a byte-identical graph, which ComfyUI's node cache can recognize and
         skip re-executing entirely (near-instant "completion" with no actual

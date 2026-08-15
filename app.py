@@ -25,12 +25,12 @@ CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 DEFAULT_CONFIG = {
     "comfyui_url": os.environ.get("COMFYUI_URL", "http://127.0.0.1:8188"),
     # Must point at the SAME directory ComfyUI itself writes rendered output
-    # to -- Scene Forge needs to read it directly to confirm a render landed
+    # to -- H3SceneManager needs to read it directly to confirm a render landed
     # and record its real path for chaining into the next sequence.
     "comfyui_output_dir": os.environ.get("COMFYUI_OUTPUT_DIR", os.path.expanduser("~/ComfyUI/output")),
     # ComfyUI's input/ directory -- where reference images/audio (character
     # faces, voice clips, location photos) typically live so LoadImage/
-    # LoadAudio nodes can find them. Scene Forge doesn't read/write this
+    # LoadAudio nodes can find them. H3SceneManager doesn't read/write this
     # directory itself; it's just where you'd browse from when picking a
     # reference file path for a character or location.
     "comfyui_input_dir": os.environ.get("COMFYUI_INPUT_DIR", os.path.expanduser("~/ComfyUI/input")),
@@ -244,7 +244,7 @@ def update_config_route():
 # Character/Location reference fields (face_image, reference_image,
 # voice_audio) are typically just a bare filename -- the same convention
 # ComfyUI's own LoadImage/LoadAudio nodes use, where a plain filename means
-# "relative to ComfyUI's input/ directory", not relative to Scene Forge.
+# "relative to ComfyUI's input/ directory", not relative to H3SceneManager.
 # A full absolute path still works too, for anyone who typed one. Browsers
 # can't load either directly in <img>/<audio> tags, so this reads the file
 # off disk and serves it over HTTP for the frontend to display.

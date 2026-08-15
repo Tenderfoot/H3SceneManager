@@ -271,7 +271,7 @@ class ComfyClient:
                 f"{grace_seconds}s of completion. output_dir={self.output_dir!r}. What "
                 f"ComfyUI's history reported, and the exact path checked for each: {attempted} "
                 f"-- check the COMFYUI_OUTPUT_DIR setting, or that ComfyUI is writing to the "
-                f"same folder Scene Forge is reading from"
+                f"same folder H3SceneManager is reading from"
             )
         raise ComfyClientError("ComfyUI history entry contained no output file references")
 

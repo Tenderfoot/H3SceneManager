@@ -1,5 +1,5 @@
 """
-Plain-dataclass data models for Scene Forge.
+Plain-dataclass data models for H3SceneManager.
 
 Kept dependency-free (no pydantic) so this module can be reused as-is
 from a future CLI without dragging Flask/pydantic along.
