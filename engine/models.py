@@ -10,7 +10,14 @@ import uuid
 
 
 def new_id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:8]}"
+    # 6 hex chars (~16.7M possible values) is still comfortably collision-safe
+    # for a single-user local tool -- at that scale you'd need several
+    # thousand entities before collision odds became meaningfully non-zero.
+    # This id is the PERMANENT, unchanging primary key referenced everywhere
+    # (scene castings, location_id, API URLs) -- unrelated to the on-disk
+    # filename, which is free to embed the entity's current name and change
+    # over time (see engine/storage.py).
+    return f"{prefix}_{uuid.uuid4().hex[:6]}"
 
 
 def _known_fields(cls, d: dict) -> dict:
