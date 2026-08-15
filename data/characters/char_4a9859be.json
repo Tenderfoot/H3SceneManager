@@ -4,15 +4,7 @@
   "face_image": "michael scott.png",
   "voice_audio": "michaelaudio.wav",
   "category": "The Office",
-  "attire_options": [
-    {
-      "id": "attire_e6e100a0",
-      "label": "Starfleet Captain Uniform",
-      "image_path": "michael_attire.png",
-      "description": "",
-      "is_default": true
-    }
-  ],
+  "attire_options": [],
   "appearance_description": "",
   "properties": {}
 }

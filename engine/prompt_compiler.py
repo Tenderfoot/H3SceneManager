@@ -237,8 +237,7 @@ def _group_beats_into_shots(beats):
 def compile_prompt(*, location, characters, sequence, scene,
                     location_picture_slot=None,
                     prev_frame_picture_slot=None,
-                    character_slots=None,
-                    attire_by_char_id=None):
+                    character_slots=None):
     """
     location: Location instance
     characters: ordered list of Character instances used in this sequence
@@ -249,17 +248,12 @@ def compile_prompt(*, location, characters, sequence, scene,
     prev_frame_picture_slot: resolved slot name the previous-frame image was
         wired into, or None if this is the first sequence in the scene
     character_slots: dict of character_id -> {"face": slot_name_or_None,
-        "attire": slot_name_or_None, "voice": slot_name_or_None}
-    attire_by_char_id: dict of character_id -> AttireOption (or None) --
-        the attire actually worn this scene, whose description (if any) gets
-        folded into that character's Subject definition alongside their base
-        appearance_description.
+        "voice": slot_name_or_None}
 
     Returns the complete prompt string, ready to drop wholesale into the
     workflow's prompt widget.
     """
     character_slots = character_slots or {}
-    attire_by_char_id = attire_by_char_id or {}
 
     # ---------- Subject numbering (our own bookkeeping, order-independent
     # of physical sockets) ----------
@@ -365,25 +359,15 @@ def compile_prompt(*, location, characters, sequence, scene,
         summary_subject_mentions.append(f"<Subject {n}>")
         task_types.append(TASK_REFERENCE)
 
-    # ---------- Characters: <Subject N> citing face/attire <Picture N>s,
+    # ---------- Characters: <Subject N> citing their face <Picture N>,
     # plus <Audio N> if they speak this sequence ----------
     for character in characters:
         n = subject_number_by_char_id[character.id]
         slots = character_slots.get(character.id, {})
-        picture_citations = []
-        for key in ("face", "attire"):
-            slot_name = slots.get(key)
-            if slot_name is not None:
-                picture_citations.append(f"<Picture {slot_index(slot_name) + 1}>")
-        citation_text = " and ".join(picture_citations) if picture_citations else None
+        face_slot = slots.get("face")
+        citation_text = f"<Picture {slot_index(face_slot) + 1}>" if face_slot is not None else None
 
-        desc_parts = []
-        if character.appearance_description:
-            desc_parts.append(character.appearance_description)
-        chosen_attire = attire_by_char_id.get(character.id)
-        if chosen_attire is not None and getattr(chosen_attire, "description", ""):
-            desc_parts.append(chosen_attire.description)
-        desc = ", ".join(desc_parts)
+        desc = character.appearance_description or ""
         character_desc_by_id[character.id] = desc
         if citation_text and desc:
             subject_lines.append(f"<Subject {n}> is {character.name}, appearing in {citation_text}, {desc}.")
@@ -400,7 +384,7 @@ def compile_prompt(*, location, characters, sequence, scene,
         # only in subject_definitions and detailed_description, never here.
         retention_lines.append(f"<Subject {n}> (appears in {shots_label}): {retention_desc}.")
         summary_subject_mentions.append(f"<Subject {n}>")
-        if picture_citations:
+        if citation_text:
             task_types.append(TASK_REFERENCE)
 
         voice_slot = slots.get("voice")
@@ -535,8 +519,7 @@ def compile_prompt(*, location, characters, sequence, scene,
 def compile_lean_prompt(*, location, characters, sequence, scene,
                          location_picture_slot=None,
                          prev_frame_picture_slot=None,
-                         character_slots=None,
-                         attire_by_char_id=None):
+                         character_slots=None):
     """
     Leaner alternative to compile_prompt(), modeled on MiniMax H3's BASE
     prompt guide (T2VA/I2VA/FL2VA/L2VA) instead of the full-reference
@@ -554,9 +537,9 @@ def compile_lean_prompt(*, location, characters, sequence, scene,
 
     The base guide was written for single/dual-keyframe tasks (I2VA/FL2VA/
     L2VA) and never describes multi-asset per-character referencing at all
-    -- there's no documented convention for "here's a face image, an attire
-    image, and a voice clip, all for the same character." The choices below
-    are our own adaptation, not a literal implementation of either guide:
+    -- there's no documented convention for "here's a face image and a
+    voice clip, both for the same character." The choices below are our own
+    adaptation, not a literal implementation of either guide:
 
     - No <Subject N> abstraction. Characters and the location are referred to
       by their actual names throughout, matching the base guide's own style
@@ -589,7 +572,6 @@ def compile_lean_prompt(*, location, characters, sequence, scene,
     the workflow's prompt widget.
     """
     character_slots = character_slots or {}
-    attire_by_char_id = attire_by_char_id or {}
     characters_by_id = {c.id: c for c in characters}
 
     # Speaker numbering, fresh per sequence (same rationale as the full format:
@@ -628,25 +610,15 @@ def compile_lean_prompt(*, location, characters, sequence, scene,
 
     def _character_intro(character):
         slots = character_slots.get(character.id, {})
-        picture_citations = []
-        for key in ("face", "attire"):
-            slot_name = slots.get(key)
-            if slot_name is not None:
-                picture_citations.append(f"<Picture {slot_index(slot_name) + 1}>")
-        citation_text = " and ".join(picture_citations) if picture_citations else None
+        face_slot = slots.get("face")
+        citation_text = f"<Picture {slot_index(face_slot) + 1}>" if face_slot is not None else None
 
         voice_slot = slots.get("voice")
         voice_clause = None
         if voice_slot is not None:
             voice_clause = f"voiced by <Audio {slot_index(voice_slot) + 1}>"
 
-        desc_parts = []
-        if character.appearance_description:
-            desc_parts.append(character.appearance_description)
-        chosen_attire = attire_by_char_id.get(character.id)
-        if chosen_attire is not None and getattr(chosen_attire, "description", ""):
-            desc_parts.append(chosen_attire.description)
-        desc = ", ".join(desc_parts)
+        desc = character.appearance_description or ""
 
         ref_parts = []
         if citation_text:

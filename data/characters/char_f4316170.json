@@ -4,15 +4,7 @@
   "face_image": "dwight.png",
   "voice_audio": "dwightaudio.wav",
   "category": "The Office",
-  "attire_options": [
-    {
-      "id": "attire_ec230685",
-      "label": "Starfleet Chief of Security Uniform",
-      "image_path": "dwight_attire.png",
-      "description": "",
-      "is_default": true
-    }
-  ],
+  "attire_options": [],
   "appearance_description": "",
   "properties": {}
 }

@@ -5,7 +5,7 @@ import threading
 import time
 from flask import Flask, request, jsonify, send_from_directory, send_file
 
-from engine.models import Character, Location, Sequence, Scene, Beat, AttireOption, CharacterCasting, new_id
+from engine.models import Character, Location, Sequence, Scene, Beat, CharacterCasting, new_id
 from engine.storage import JsonStore
 from engine.template_engine import generate_sequence_workflow, TemplateEngineError
 from engine.prompt_compiler import DELIVERY_PRESETS, STYLE_PRESETS
@@ -29,7 +29,7 @@ DEFAULT_CONFIG = {
     # and record its real path for chaining into the next sequence.
     "comfyui_output_dir": os.environ.get("COMFYUI_OUTPUT_DIR", os.path.expanduser("~/ComfyUI/output")),
     # ComfyUI's input/ directory -- where reference images/audio (character
-    # faces, attire, voice clips, location photos) typically live so LoadImage/
+    # faces, voice clips, location photos) typically live so LoadImage/
     # LoadAudio nodes can find them. Scene Forge doesn't read/write this
     # directory itself; it's just where you'd browse from when picking a
     # reference file path for a character or location.
@@ -162,8 +162,8 @@ def _sequence_workflow_path(scene, sequence):
 
 class SceneGenerationError(Exception):
     """User-facing error for problems found while assembling generation
-    context for a scene (missing location/character/attire, etc.) -- shared
-    by the manual /generate endpoint and the background scene-run job."""
+    context for a scene (missing location/character, etc.) -- shared by the
+    manual /generate endpoint and the background scene-run job."""
 
 
 def _gather_scene_generation_context(scene):
@@ -172,22 +172,13 @@ def _gather_scene_generation_context(scene):
         raise SceneGenerationError("scene has no valid location")
 
     scene_characters = []
-    attire_by_char_id = {}
     for casting in scene.character_castings:
         character = characters.load(casting.character_id)
         if character is None:
             raise SceneGenerationError(f"scene references a missing character '{casting.character_id}'")
         scene_characters.append(character)
-        if casting.attire_id:
-            chosen = next((a for a in character.attire_options if a.id == casting.attire_id), None)
-            if chosen is None:
-                raise SceneGenerationError(
-                    f"attire '{casting.attire_id}' not found for character '{character.name}'")
-        else:
-            chosen = character.default_attire()
-        attire_by_char_id[character.id] = chosen
 
-    return location, scene_characters, attire_by_char_id
+    return location, scene_characters
 
 
 # ---------- static frontend ----------
@@ -250,7 +241,7 @@ def update_config_route():
 
 
 # ---------- media: serve local reference images/audio by path ----------
-# Character/Location reference fields (face_image, attire images, reference_image,
+# Character/Location reference fields (face_image, reference_image,
 # voice_audio) are typically just a bare filename -- the same convention
 # ComfyUI's own LoadImage/LoadAudio nodes use, where a plain filename means
 # "relative to ComfyUI's input/ directory", not relative to Scene Forge.
@@ -269,31 +260,6 @@ def serve_media():
     return send_file(path)
 
 
-def _parse_attire_options(raw_list):
-    """
-    Build AttireOption objects from JSON body entries. Entries that already
-    carry an 'id' (i.e. an existing option being edited) keep that id, so
-    scenes that reference it by attire_id don't get silently orphaned by an
-    edit. New entries (no 'id') get a fresh one. Exactly one ends up marked
-    default -- the first, if none was explicitly marked.
-    """
-    options = []
-    for item in raw_list or []:
-        kwargs = dict(
-            label=item.get("label", ""),
-            image_path=item.get("image_path", ""),
-            description=item.get("description", ""),
-            is_default=bool(item.get("is_default", False)),
-        )
-        if item.get("id"):
-            options.append(AttireOption(id=item["id"], **kwargs))
-        else:
-            options.append(AttireOption.create(**kwargs))
-    if options and not any(o.is_default for o in options):
-        options[0].is_default = True
-    return options
-
-
 # ---------- characters ----------
 @app.route("/api/characters", methods=["GET"])
 def list_characters():
@@ -308,7 +274,6 @@ def create_character():
         face_image=data.get("face_image", ""),
         voice_audio=data.get("voice_audio", ""),
         category=data.get("category", ""),
-        attire_options=_parse_attire_options(data.get("attire_options", [])),
         appearance_description=data.get("appearance_description", ""),
         properties=data.get("properties", {}),
     )
@@ -327,8 +292,6 @@ def update_character(cid):
         face_image=data.get("face_image", existing.face_image),
         voice_audio=data.get("voice_audio", existing.voice_audio),
         category=data.get("category", existing.category),
-        attire_options=(_parse_attire_options(data["attire_options"])
-                         if "attire_options" in data else existing.attire_options),
         appearance_description=data.get("appearance_description", existing.appearance_description),
         properties=data.get("properties", existing.properties),
     )
@@ -387,7 +350,7 @@ def delete_location(lid):
 
 def _parse_castings(raw_list):
     return [
-        CharacterCasting(character_id=item["character_id"], attire_id=item.get("attire_id", ""))
+        CharacterCasting(character_id=item["character_id"])
         for item in raw_list or [] if item.get("character_id")
     ]
 
@@ -775,6 +738,15 @@ def _resolve_prompt_format(data):
     return value, None
 
 
+def _resolve_randomize_seed(data):
+    """Reads randomize_seed straight off the request body -- same per-call,
+    not-stored-anywhere pattern as prompt_format (see the scene editor's
+    "Randomize seed" checkbox). Defaults to True: without a fresh seed each
+    call, regenerating an unchanged sequence submits a byte-identical graph
+    that ComfyUI's node cache can just skip re-executing."""
+    return bool(data.get("randomize_seed", True))
+
+
 # ---------- generation ----------
 @app.route("/api/scenes/<scid>/sequences/<seqid>/generate", methods=["POST"])
 def generate_sequence(scid, seqid):
@@ -786,9 +758,10 @@ def generate_sequence(scid, seqid):
     prompt_format, err = _resolve_prompt_format(data)
     if err:
         return jsonify({"error": err}), 400
+    randomize_seed = _resolve_randomize_seed(data)
 
     try:
-        location, scene_characters, attire_by_char_id = _gather_scene_generation_context(scene)
+        location, scene_characters = _gather_scene_generation_context(scene)
     except SceneGenerationError as e:
         return jsonify({"error": str(e)}), 400
 
@@ -817,9 +790,9 @@ def generate_sequence(scid, seqid):
             characters=scene_characters,
             sequence=sequence,
             scene=scene,
-            attire_by_char_id=attire_by_char_id,
             previous_output_path=previous_output_path,
             prompt_format=prompt_format,
+            randomize_seed=randomize_seed,
         )
     except TemplateEngineError as e:
         return jsonify({"error": str(e)}), 400
@@ -853,13 +826,18 @@ def _new_run_job(scene):
                 "prompt_id": None,
                 "output_video_path": s.output_video_path or None,
                 "error": None,
+                "progress": None,  # {"value": N, "max": M} sampler-step progress while
+                                    # "rendering", from ComfyUI's WebSocket -- None if not
+                                    # yet available (websocket-client not installed, the
+                                    # connection failed, or no progress message has arrived
+                                    # for this sequence yet)
             }
             for s in sorted(scene.sequences, key=lambda s: s.index)
         ],
     }
 
 
-def _run_scene_job(scid, prompt_format):
+def _run_scene_job(scid, prompt_format, randomize_seed):
     def _touch_job(mutate):
         with SCENE_RUNS_LOCK:
             job = SCENE_RUNS.get(scid)
@@ -888,7 +866,7 @@ def _run_scene_job(scid, prompt_format):
         if not scene:
             raise ComfyClientError("scene disappeared before the run could start")
 
-        location, scene_characters, attire_by_char_id = _gather_scene_generation_context(scene)
+        location, scene_characters = _gather_scene_generation_context(scene)
         ordered = sorted(scene.sequences, key=lambda s: s.index)
 
         previous_output_path = None
@@ -906,9 +884,10 @@ def _run_scene_job(scid, prompt_format):
             template = load_template()
             wf, _prefix = generate_sequence_workflow(
                 template, location=location, characters=scene_characters,
-                sequence=sequence, scene=scene, attire_by_char_id=attire_by_char_id,
+                sequence=sequence, scene=scene,
                 previous_output_path=previous_output_path,
                 prompt_format=prompt_format,
+                randomize_seed=randomize_seed,
             )
             out_path = _sequence_workflow_path(scene, sequence)
             with open(out_path, "w") as f:
@@ -921,15 +900,18 @@ def _run_scene_job(scid, prompt_format):
 
             _touch_seq(sequence.id, state="queued")
             prompt_id = client.queue_prompt(api_wf)
-            _touch_seq(sequence.id, state="rendering", prompt_id=prompt_id)
+            _touch_seq(sequence.id, state="rendering", prompt_id=prompt_id, progress=None)
 
-            history_entry = client.wait_for_completion(prompt_id, should_cancel=_should_cancel)
+            history_entry = client.wait_for_completion(
+                prompt_id, should_cancel=_should_cancel,
+                on_progress=lambda value, max_, sid=sequence.id: _touch_seq(sid, progress={"value": value, "max": max_}),
+            )
             output_path = client.find_output_file(history_entry)
 
             sequence.status = "rendered"
             sequence.output_video_path = output_path
             scenes.save(scene)
-            _touch_seq(sequence.id, state="rendered", output_video_path=output_path)
+            _touch_seq(sequence.id, state="rendered", output_video_path=output_path, progress=None)
 
             previous_output_path = output_path
 
@@ -950,6 +932,8 @@ def _run_scene_job(scid, prompt_format):
             _touch_job(lambda job: job.update(state="error", error=str(e), finished_at=time.time()))
     except Exception as e:  # last-resort guard so a bug never leaves the job stuck "running"
         _touch_job(lambda job: job.update(state="error", error=f"unexpected error: {e}", finished_at=time.time()))
+    finally:
+        client.close()
 
 
 @app.route("/api/scenes/<scid>/run", methods=["POST"])
@@ -964,6 +948,7 @@ def start_scene_run(scid):
     prompt_format, err = _resolve_prompt_format(data)
     if err:
         return jsonify({"error": err}), 400
+    randomize_seed = _resolve_randomize_seed(data)
 
     with SCENE_RUNS_LOCK:
         existing = SCENE_RUNS.get(scid)
@@ -971,7 +956,7 @@ def start_scene_run(scid):
             return jsonify({"error": "a render run is already in progress for this scene"}), 409
         SCENE_RUNS[scid] = _new_run_job(scene)
 
-    threading.Thread(target=_run_scene_job, args=(scid, prompt_format), daemon=True).start()
+    threading.Thread(target=_run_scene_job, args=(scid, prompt_format, randomize_seed), daemon=True).start()
     return jsonify({"started": True})
 
 

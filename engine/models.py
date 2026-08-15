@@ -24,29 +24,6 @@ def _known_fields(cls, d: dict) -> dict:
 
 
 @dataclass
-class AttireOption:
-    """One selectable outfit for a character. A character can have several;
-    exactly one should be marked as_default so scenes have a sane fallback
-    when a casting doesn't explicitly pick one."""
-    id: str
-    label: str = ""
-    image_path: str = ""
-    description: str = ""   # optional, folded into the Subject definition when worn
-    is_default: bool = False
-
-    @staticmethod
-    def create(label="", **kwargs) -> "AttireOption":
-        return AttireOption(id=new_id("attire"), label=label, **kwargs)
-
-    def to_dict(self):
-        return asdict(self)
-
-    @staticmethod
-    def from_dict(d):
-        return AttireOption(**_known_fields(AttireOption, d))
-
-
-@dataclass
 class Character:
     id: str
     name: str
@@ -55,42 +32,24 @@ class Character:
     category: str = ""        # free-form, user-defined grouping (e.g. "Protagonists",
                                # "Season 2 Cast") -- not a fixed vocabulary, just whatever
                                # categories the user has typed for other characters so far
-    attire_options: list = field(default_factory=list)  # list of AttireOption
-    appearance_description: str = ""  # visual details for subject_definitions:
-                                       # hair, build, face -- NOT clothing (that
-                                       # lives on the chosen AttireOption instead)
+    appearance_description: str = ""  # visual details for subject_definitions: hair,
+                                       # build, face, clothing -- anything you want the
+                                       # model to preserve about this character's look,
+                                       # as plain text (no separate attire reference image)
     properties: dict = field(default_factory=dict)  # free-form (personality, notes, etc.)
 
     @staticmethod
     def create(name, **kwargs) -> "Character":
         return Character(id=new_id("char"), name=name, **kwargs)
 
-    def default_attire(self):
-        for a in self.attire_options:
-            if a.is_default:
-                return a
-        return self.attire_options[0] if self.attire_options else None
-
     def to_dict(self):
         return asdict(self)
 
     @staticmethod
     def from_dict(d):
-        d = dict(d)
-        # Migrate the old single `attire_image` field (pre-attire-options) into
-        # a one-entry attire_options list, so nothing on disk from before this
-        # change gets silently dropped.
-        legacy_attire_image = d.pop("attire_image", None)
-        raw_options = d.get("attire_options")
-        if raw_options:
-            options = [AttireOption.from_dict(a) if not isinstance(a, AttireOption) else a
-                       for a in raw_options]
-        elif legacy_attire_image:
-            options = [AttireOption.create(label="Default", image_path=legacy_attire_image,
-                                            is_default=True)]
-        else:
-            options = []
-        d["attire_options"] = options
+        # Old JSON on disk may still carry attire_options/attire_image from
+        # before attire was removed as a concept entirely -- _known_fields
+        # below silently drops them, same as any other retired field.
         return Character(**_known_fields(Character, d))
 
 
@@ -185,10 +144,11 @@ class Sequence:
 
 @dataclass
 class CharacterCasting:
-    """One character's presence in a scene, plus which attire they're wearing
-    for the whole scene. attire_id == "" means 'use that character's default'."""
+    """One character's presence in a scene. Kept as its own small wrapper
+    (rather than a flat list of character ids) so a scene's cast list has
+    somewhere to grow into if a future per-scene, per-character setting
+    shows up again -- currently just wraps character_id."""
     character_id: str
-    attire_id: str = ""
 
     def to_dict(self):
         return asdict(self)
@@ -236,9 +196,9 @@ class Scene:
         else:
             d.pop("setting_id", None)
 
-        # Migrate the old flat `character_ids` list (pre-attire-casting) into
-        # character_castings with no attire preference (resolves to each
-        # character's default attire at generation time).
+        # Migrate the old flat `character_ids` list into character_castings
+        # (a small wrapper around character_id, kept for potential future
+        # per-scene per-character settings).
         legacy_ids = d.pop("character_ids", None)
         raw_castings = d.get("character_castings")
         if raw_castings:

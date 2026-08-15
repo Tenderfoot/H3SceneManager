@@ -10,9 +10,14 @@ Core ideas, matched to the conventions already present in the template file:
   gap between them (not just floating unlabeled nodes). The nodes inside the
   template group are identified by their own {{ }} titles:
       "{{ Face N }}"   (LoadImage)  -> wired into the next free ref_images.* slot
-      "{{ Attire N }}" (LoadImage)  -> wired into the next free ref_images.* slot
       "{{ Voice N }}"  (LoadAudio)  -> wired into the next free ref_audios.* slot,
                                        only for characters who speak this sequence
+  The template group also still contains a "{{ Attire N }}" (LoadImage) node
+  left over from before attire was removed as a concept -- it's deliberately
+  never cloned or wired (see the per-character loop below), so it never
+  shows up in generated output. It's harmless to leave in the template file
+  itself; if you ever clean up Grant_Template_Workflow.json by hand, that
+  node and its {{ }} title are safe to delete.
 
 - A group titled "{{ Establishing References }}" holds two singleton nodes:
       "{{ Setting Image }}"            (LoadImage)   -> wired once, into ref_images.*
@@ -55,15 +60,24 @@ doesn't consume an audio slot at all, which is what keeps a larger
 non-speaking cast from needlessly hitting the 3-audio cap.
 """
 import copy
+import random
 import re
 
 from .prompt_compiler import compile_prompt, compile_lean_prompt
 
 SINK_NODE_TYPE = "MiniMaxH3ReferenceToVideo"
+RANDOM_NOISE_NODE_TYPE = "RandomNoise"
+MAX_SAFE_SEED = 2**53 - 1  # stays a precise integer if this value ever round-trips
+                            # through JSON into JS (e.g. the /workflow/convert
+                            # endpoint, or a browser) -- past 2**53, doubles can't
+                            # represent every integer exactly
 CHARACTER_GROUP_TITLE = "{{ Character N }}"
 ESTABLISHING_GROUP_TITLE = "{{ Establishing References }}"
 FACE_TITLE = "{{ Face N }}"
-ATTIRE_TITLE = "{{ Attire N }}"
+ATTIRE_TITLE = "{{ Attire N }}"  # present in the template group but deliberately
+                                  # never cloned/wired -- attire was removed as a
+                                  # concept; kept here only so the per-character
+                                  # loop can recognize and skip this leftover node
 VOICE_TITLE = "{{ Voice N }}"
 SETTING_IMAGE_TITLE = "{{ Setting Image }}"  # matches the literal ComfyUI node title in
                                               # the template JSON -- NOT renamed to
@@ -224,19 +238,14 @@ def _slugify(name):
 
 
 def generate_sequence_workflow(template, *, location, characters, sequence, scene,
-                                attire_by_char_id=None,
                                 previous_output_path=None, output_prefix=None,
-                                prompt_format="lean"):
+                                prompt_format="lean", randomize_seed=True):
     """
     template: parsed dict of the template workflow JSON (will be deep-copied)
     location: Location instance
     characters: ordered list of Character instances for this scene
     sequence: Sequence instance being generated
-    scene: Scene instance (for non_diegetic_dialog / soundscape)
-    attire_by_char_id: dict of character_id -> AttireOption (or None) --
-        the ONE attire chosen for that character in this scene. Only that
-        attire's image gets wired in; a character with no entry (or a None
-        value) gets no Attire node at all for this generation.
+    scene: Scene instance (reads .non_diegetic_music)
     previous_output_path: resolved absolute path to previous sequence's video,
         or None if this is the first sequence in the scene
     output_prefix: filename prefix to give the SaveVideo node; defaults to
@@ -250,10 +259,19 @@ def generate_sequence_workflow(template, *, location, characters, sequence, scen
         sequences in the same scene, or across repeated generates of the
         same sequence, is just a matter of what the caller passes in each
         time.
+    randomize_seed: if True (the default), overwrite the RandomNoise node's
+        noise_seed with a fresh random value on every call. Needed because
+        that node's "control_after_generate": "randomize" widget is a
+        ComfyUI-FRONTEND-only convenience -- it does nothing when a workflow
+        is submitted directly via the API, which is what Scene Forge always
+        does. Without this, regenerating the same sequence unchanged submits
+        a byte-identical graph, which ComfyUI's node cache can recognize and
+        skip re-executing entirely (near-instant "completion" with no actual
+        new render). Set False only if you deliberately want a reproducible,
+        fixed seed across regenerates.
 
     Returns: a new workflow dict, ready to write to disk / submit to ComfyUI.
     """
-    attire_by_char_id = attire_by_char_id or {}
     wf = copy.deepcopy(template)
     next_node_id, next_link_id, next_group_id = _next_ids(wf)
     sink = _find_node_by_type(wf, SINK_NODE_TYPE)
@@ -353,7 +371,7 @@ def generate_sequence_workflow(template, *, location, characters, sequence, scen
     # keeps a larger non-speaking cast from needlessly hitting the 3-audio cap.
     speaking_char_ids = {b.character_id for b in sequence.beats if b.kind == "dialogue"}
 
-    character_slots = {}  # character.id -> {"face": slot_name, "attire": slot_name, "voice": slot_name}
+    character_slots = {}  # character.id -> {"face": slot_name, "voice": slot_name}
 
     for i, character in enumerate(characters):
         dx = i * step
@@ -364,18 +382,15 @@ def generate_sequence_workflow(template, *, location, characters, sequence, scen
             "color": character_group.get("color", "#3f789e"),
             "flags": character_group.get("flags", {}),
         })
-        character_slots[character.id] = {"face": None, "attire": None, "voice": None}
+        character_slots[character.id] = {"face": None, "voice": None}
 
         for src_node in template_char_nodes:
             title = src_node.get("title")
 
             if title == ATTIRE_TITLE:
-                chosen_attire = attire_by_char_id.get(character.id)
-                if chosen_attire is None or not chosen_attire.image_path:
-                    # No attire selected/available for this character in this
-                    # scene -- skip creating this node entirely rather than
-                    # wiring an empty path.
-                    continue
+                # Attire was removed as a concept entirely -- never clone or
+                # wire this node, regardless of anything on the character.
+                continue
             elif title == VOICE_TITLE:
                 if not character.voice_audio:
                     continue  # no voice reference for this character at all
@@ -391,12 +406,6 @@ def generate_sequence_workflow(template, *, location, characters, sequence, scen
                 new_node["title"] = f"Face: {character.name}"
                 family = IMAGE_FAMILY
                 slot_key = "face"
-            elif title == ATTIRE_TITLE:
-                new_node["widgets_values"][0] = chosen_attire.image_path
-                label = f" ({chosen_attire.label})" if chosen_attire.label else ""
-                new_node["title"] = f"Attire: {character.name}{label}"
-                family = IMAGE_FAMILY
-                slot_key = "attire"
             elif title == VOICE_TITLE:
                 new_node["widgets_values"][0] = character.voice_audio
                 new_node["title"] = f"Voice: {character.name}"
@@ -420,6 +429,15 @@ def generate_sequence_workflow(template, *, location, characters, sequence, scen
         if node.get("title") == "Float (Duration)":
             node["widgets_values"][0] = sequence.duration
 
+    # --- Seed: RandomNoise's "control_after_generate": "randomize" widget is a
+    # ComfyUI-frontend-only convenience that the API never acts on -- so we
+    # roll a fresh seed ourselves whenever randomize_seed is set, or every
+    # regenerate of an unchanged sequence would submit a byte-identical graph
+    # ComfyUI's node cache can just skip re-executing. ---
+    if randomize_seed:
+        noise_node = _find_node_by_type(wf, RANDOM_NOISE_NODE_TYPE)
+        noise_node["widgets_values"][0] = random.randint(0, MAX_SAFE_SEED)
+
     # --- Output filename prefix, for chaining ---
     # SaveVideo's prefix supports "/" as a folder separator -- put each
     # scene's renders in their own folder named after the scene, with
@@ -440,7 +458,6 @@ def generate_sequence_workflow(template, *, location, characters, sequence, scen
         location_picture_slot=location_picture_slot,
         prev_frame_picture_slot=prev_frame_picture_slot,
         character_slots=character_slots,
-        attire_by_char_id=attire_by_char_id,
     )
     for node in wf["nodes"]:
         if node.get("title") == "Input Text (Prompt)":

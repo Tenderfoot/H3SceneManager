@@ -52,46 +52,6 @@ function parsePropertiesField(form) {
   catch { alert("Custom properties must be valid JSON (or left blank)."); throw new Error("bad json"); }
 }
 
-// ---------- characters: attire sub-editor ----------
-function attireRowHtml(attire = {}) {
-  const id = attire.id || "";
-  const checked = attire.is_default ? "checked" : "";
-  return `
-    <div class="attire-row" data-attire-id="${id}">
-      <input type="hidden" class="attire-id" value="${id}">
-      <input type="text" class="attire-label" placeholder="Label (e.g. 'Uniform')" value="${attire.label || ""}">
-      <input type="text" class="attire-image" placeholder="Filename in ComfyUI's input/ dir (or an absolute path)" value="${attire.image_path || ""}">
-      <input type="text" class="attire-desc" placeholder="Optional description (clothing details for the prompt)" value="${attire.description || ""}">
-      <label class="default-toggle"><input type="radio" name="attire_default" ${checked}> Default</label>
-      <button type="button" data-remove-attire>×</button>
-    </div>`;
-}
-
-function addAttireRow(attire = {}) {
-  const container = $("#attire-rows");
-  const wrapper = document.createElement("div");
-  wrapper.innerHTML = attireRowHtml(attire);
-  const row = wrapper.firstElementChild;
-  row.querySelector("[data-remove-attire]").onclick = () => row.remove();
-  container.appendChild(row);
-}
-
-function clearAttireRows() {
-  $("#attire-rows").innerHTML = "";
-}
-
-function collectAttireOptions() {
-  return $$(".attire-row", $("#attire-rows")).map(row => ({
-    id: row.querySelector(".attire-id").value || undefined,
-    label: row.querySelector(".attire-label").value,
-    image_path: row.querySelector(".attire-image").value,
-    description: row.querySelector(".attire-desc").value,
-    is_default: row.querySelector('input[name="attire_default"]').checked,
-  }));
-}
-
-$("#add-attire-row").addEventListener("click", () => addAttireRow());
-
 // ---------- shared category-dropdown helper (characters, locations each have
 // their own independent category namespace, not shared between them) ----------
 function makeCategoryPicker(selectEl, newInputEl) {
@@ -171,9 +131,6 @@ async function refreshCharacters() {
     for (const c of grouped[key]) {
       const card = document.createElement("div");
       card.className = "entity-card";
-      const attireNote = c.attire_options.length
-        ? `${c.attire_options.length} attire option(s)`
-        : "no attire options";
       const faceThumbHtml = `<div class="char-thumb-wrap">${
         c.face_image ? `<img class="char-thumb" src="${mediaUrl(c.face_image)}" alt="" onerror="this.remove()">` : ""
       }</div>`;
@@ -182,7 +139,7 @@ async function refreshCharacters() {
           ${faceThumbHtml}
           <div>
             <strong>${c.name}</strong>
-            <div class="meta">${c.face_image || "no face image"} · ${c.voice_audio || "no voice"} · ${attireNote}</div>
+            <div class="meta">${c.face_image || "no face image"} · ${c.voice_audio || "no voice"}</div>
           </div>
         </div>
         <div>
@@ -205,8 +162,6 @@ async function refreshCharacters() {
         } else {
           characterCategoryPicker.populate(categories, "");
         }
-        clearAttireRows();
-        c.attire_options.forEach(a => addAttireRow(a));
       };
       card.querySelector("[data-delete]").onclick = async () => {
         if (confirm(`Delete character "${c.name}"?`)) {
@@ -231,7 +186,6 @@ function hideCharacterForm() {
   $("#add-character-btn").style.display = "";
   $("#character-form").reset();
   $("#character-form").id.value = "";
-  clearAttireRows();
 }
 $("#add-character-btn").addEventListener("click", showCharacterForm);
 $("#cancel-character-btn").addEventListener("click", hideCharacterForm);
@@ -247,7 +201,6 @@ $("#character-form").addEventListener("submit", async e => {
     voice_audio: f.voice_audio.value,
     category,
     appearance_description: f.appearance_description.value,
-    attire_options: collectAttireOptions(),
     properties,
   };
   if (f.id.value) await api(`/characters/${f.id.value}`, { method: "PUT", body: JSON.stringify(payload) });
@@ -304,10 +257,16 @@ async function refreshLocations() {
     for (const loc of grouped[key]) {
       const card = document.createElement("div");
       card.className = "entity-card";
+      const refThumbHtml = `<div class="char-thumb-wrap">${
+        loc.reference_image ? `<img class="char-thumb" src="${mediaUrl(loc.reference_image)}" alt="" onerror="this.remove()">` : ""
+      }</div>`;
       card.innerHTML = `
-        <div>
-          <strong>${loc.name}</strong>
-          <div class="meta">${loc.reference_image || "no reference image"}</div>
+        <div class="entity-card-main">
+          ${refThumbHtml}
+          <div>
+            <strong>${loc.name}</strong>
+            <div class="meta">${loc.reference_image || "no reference image"}</div>
+          </div>
         </div>
         <div>
           <button data-edit>Edit</button>
@@ -375,7 +334,7 @@ $("#location-form").addEventListener("submit", async e => {
   refreshLocations(); refreshSceneLocationSelect();
 });
 
-// ---------- scenes: location select + character/attire casting rows ----------
+// ---------- scenes: location select + character casting rows ----------
 async function refreshSceneLocationSelect() {
   const list = await api("/locations");
   const sel = $("#scene-location-select");
@@ -383,7 +342,7 @@ async function refreshSceneLocationSelect() {
     list.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join("");
 }
 
-let stagedCastings = [];       // [{character_id, attire_id}] being built for the scene form
+let stagedCastings = [];       // [{character_id}] being built for the scene form
 let allCharactersCache = [];   // refreshed whenever the casting picker updates
 
 async function refreshCastingCharacterSelect() {
@@ -393,31 +352,13 @@ async function refreshCastingCharacterSelect() {
   select.innerHTML = available.length
     ? available.map(c => `<option value="${c.id}">${c.name}</option>`).join("")
     : `<option value="">— all characters added —</option>`;
-  syncCastingAttireSelect();
   renderStagedCastings();
 }
-
-function syncCastingAttireSelect() {
-  const charId = $("#casting-character-select").value;
-  const attireSelect = $("#casting-attire-select");
-  const character = allCharactersCache.find(c => c.id === charId);
-  if (!character || !character.attire_options.length) {
-    attireSelect.innerHTML = `<option value="">— no attire options —</option>`;
-    attireSelect.disabled = true;
-    return;
-  }
-  attireSelect.disabled = false;
-  attireSelect.innerHTML = character.attire_options.map(a =>
-    `<option value="${a.id}" ${a.is_default ? "selected" : ""}>${a.label || "(untitled)"}${a.is_default ? " (default)" : ""}</option>`
-  ).join("");
-}
-$("#casting-character-select").addEventListener("change", syncCastingAttireSelect);
 
 $("#add-casting-btn").addEventListener("click", () => {
   const charId = $("#casting-character-select").value;
   if (!charId) return;
-  const attireId = $("#casting-attire-select").value || "";
-  stagedCastings.push({ character_id: charId, attire_id: attireId });
+  stagedCastings.push({ character_id: charId });
   refreshCastingCharacterSelect();  // rebuilds the available list (now excluding this one) + re-renders staged list
 });
 
@@ -435,12 +376,9 @@ function renderStagedCastings() {
   container.innerHTML = stagedCastings.map((sc, i) => {
     const character = allCharactersCache.find(c => c.id === sc.character_id);
     const name = character ? character.name : "?";
-    const attire = character?.attire_options.find(a => a.id === sc.attire_id)
-      || character?.attire_options.find(a => a.is_default);
-    const attireLabel = attire ? (attire.label || "attire") : "no attire";
     return `
       <div class="staged-casting-row" data-index="${i}">
-        <span>${name} <span class="meta">(${attireLabel})</span></span>
+        <span>${name}</span>
         <button type="button" data-remove-casting="${i}">Remove</button>
       </div>`;
   }).join("");
@@ -822,16 +760,11 @@ async function openSceneEditorTab(sceneId) {
   const characters = allChars.filter(c => castedIds.has(c.id));
   const location = allLocations.find(loc => loc.id === scene.location_id);
 
-  const attireById = {};
-  for (const c of allChars) for (const a of c.attire_options) attireById[a.id] = a;
   const locationLabel = location ? location.name : "— none chosen —";
   const charLabels = scene.character_castings.length
     ? scene.character_castings.map(casting => {
         const c = allChars.find(ch => ch.id === casting.character_id);
-        if (!c) return "?";
-        const attire = casting.attire_id ? attireById[casting.attire_id] : c.attire_options.find(a => a.is_default);
-        const attireLabel = attire ? ` (${attire.label || "attire"})` : "";
-        return `${c.name}${attireLabel}`;
+        return c ? c.name : "?";
       }).join(", ")
     : "— none —";
 
@@ -858,6 +791,12 @@ async function openSceneEditorTab(sceneId) {
     promptFormat: "lean",  // live choice only -- not saved anywhere, sent fresh with
                             // each Generate/Run request; see index.html item 4 in the
                             // punch list for why this isn't a Scene/Sequence field
+    randomizeSeed: true,   // same live/not-saved pattern -- rolls a fresh RandomNoise
+                            // seed on every Generate/Run call, since that node's
+                            // "control_after_generate" widget is a ComfyUI-frontend-only
+                            // convenience the API never acts on. Default true so
+                            // regenerating a sequence unchanged doesn't silently hit
+                            // ComfyUI's node cache and skip re-executing.
   };
 
   await refreshRunStatus();
@@ -919,6 +858,48 @@ function runSummaryText(run) {
   if (run.state === "error") return `Run stopped: ${run.error || "unknown error"}`;
   if (run.state === "cancelled") return "Run cancelled.";
   return "";
+}
+
+// Two progress bars while a run is active: overall scene progress (how many
+// sequences are done), and the currently-rendering sequence's live sampler
+// step (from ComfyUI's WebSocket, via the "progress" field on its run-status
+// entry) -- falls back to just naming the current stage (generating/
+// converting/queued/rendering) with an indeterminate bar if no step data
+// has arrived yet (e.g. websocket-client isn't installed on the server, or
+// the sequence hasn't reached the sampler yet).
+function renderRunProgressHtml(run) {
+  if (run.state !== "running") return "";
+  const seqs = run.sequences || [];
+  const total = seqs.length;
+  const renderedCount = seqs.filter(s => s.state === "rendered").length;
+  const scenePct = total ? Math.round((renderedCount / total) * 100) : 0;
+
+  const active = seqs.find(s => s.state && !["pending", "rendered"].includes(s.state));
+  let seqRowHtml = "";
+  if (active) {
+    const p = active.progress;
+    const hasProgress = p && typeof p.value === "number" && typeof p.max === "number" && p.max > 0;
+    const seqPct = hasProgress ? Math.round((p.value / p.max) * 100) : 100;
+    const seqLabel = hasProgress
+      ? `Sequence #${active.index}: step ${p.value} / ${p.max}`
+      : `Sequence #${active.index}: ${active.state}…`;
+    seqRowHtml = `
+      <div class="run-progress-row">
+        <span class="run-progress-label">${seqLabel}</span>
+        <div class="progress-bar${hasProgress ? "" : " indeterminate"}">
+          <div class="progress-bar-fill" style="width:${seqPct}%"></div>
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="run-progress">
+      <div class="run-progress-row">
+        <span class="run-progress-label">Scene: ${renderedCount} / ${total} sequences</span>
+        <div class="progress-bar"><div class="progress-bar-fill" style="width:${scenePct}%"></div></div>
+      </div>
+      ${seqRowHtml}
+    </div>`;
 }
 
 function renderSceneEditorPanel() {
@@ -1004,11 +985,17 @@ function renderSceneEditorPanel() {
     </div>
 
     <div class="save-bar prompt-format-bar">
-      <span class="save-bar-status">Prompt format used for Generate / Run Scene:</span>
-      <select id="scene-editor-prompt-format">
-        <option value="lean" ${ed.promptFormat === "lean" ? "selected" : ""}>Lean (base-guide style)</option>
-        <option value="full" ${ed.promptFormat === "full" ? "selected" : ""}>Full (six-section rewrite-guide style)</option>
-      </select>
+      <div class="prompt-format-row">
+        <span class="save-bar-status">Prompt format used for Generate / Run Scene:</span>
+        <select id="scene-editor-prompt-format">
+          <option value="lean" ${ed.promptFormat === "lean" ? "selected" : ""}>Lean (base-guide style)</option>
+          <option value="full" ${ed.promptFormat === "full" ? "selected" : ""}>Full (six-section rewrite-guide style)</option>
+        </select>
+      </div>
+      <label class="randomize-seed-toggle">
+        <input type="checkbox" id="scene-editor-randomize-seed" ${ed.randomizeSeed ? "checked" : ""}>
+        Randomize seed
+      </label>
     </div>
 
     <div class="save-bar ${dirty ? "dirty" : ""}">
@@ -1020,11 +1007,14 @@ function renderSceneEditorPanel() {
     </div>
 
     <div class="save-bar run-bar ${running ? "dirty" : ""} ${run.state === "error" ? "run-error" : ""}">
-      <span class="save-bar-status">${runSummaryText(run)}</span>
-      ${running
-        ? `<button data-cancel-run>Cancel Run</button>`
-        : `<button data-run-scene ${dirty || !sorted.length ? "disabled" : ""}
-             title="${dirty ? "Save changes first" : ""}">Run Scene</button>`}
+      <div class="run-bar-top">
+        <span class="save-bar-status">${runSummaryText(run)}</span>
+        ${running
+          ? `<button data-cancel-run>Cancel Run</button>`
+          : `<button data-run-scene ${dirty || !sorted.length ? "disabled" : ""}
+               title="${dirty ? "Save changes first" : ""}">Run Scene</button>`}
+      </div>
+      ${renderRunProgressHtml(run)}
     </div>
 
     <div class="save-bar reset-status-bar">
@@ -1056,6 +1046,9 @@ function renderSceneEditorPanel() {
   ed.panel.querySelector("#scene-editor-prompt-format").addEventListener("change", e => {
     ed.promptFormat = e.target.value;  // live only, no re-render needed
   });
+  ed.panel.querySelector("#scene-editor-randomize-seed").addEventListener("change", e => {
+    ed.randomizeSeed = e.target.checked;  // live only, no re-render needed
+  });
 
   // save bar
   ed.panel.querySelector("[data-save-changes]").onclick = async () => {
@@ -1081,7 +1074,7 @@ function renderSceneEditorPanel() {
     runBtn.onclick = async () => {
       try {
         await api(`/scenes/${ed.sceneId}/run`, {
-          method: "POST", body: JSON.stringify({ prompt_format: ed.promptFormat }),
+          method: "POST", body: JSON.stringify({ prompt_format: ed.promptFormat, randomize_seed: ed.randomizeSeed }),
         });
         await refreshRunStatus();
         renderSceneEditorPanel();
@@ -1184,7 +1177,7 @@ function renderSceneEditorPanel() {
       }
       try {
         const result = await api(`/scenes/${ed.sceneId}/sequences/${seq.id}/generate`, {
-          method: "POST", body: JSON.stringify({ prompt_format: ed.promptFormat }),
+          method: "POST", body: JSON.stringify({ prompt_format: ed.promptFormat, randomize_seed: ed.randomizeSeed }),
         });
         card.querySelector("[data-result]").textContent = `Written to: ${result.workflow_path}`;
         const fresh = await api(`/scenes/${ed.sceneId}`);

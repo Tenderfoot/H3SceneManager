@@ -32,13 +32,7 @@
 
       <input type="text" name="face_image" placeholder="Filename in ComfyUI's input/ dir (or an absolute path)">
       <input type="text" name="voice_audio" placeholder="Filename in ComfyUI's input/ dir (or an absolute path)">
-      <textarea name="appearance_description" placeholder="Visual appearance for the prompt (hair, build, face -- not clothing)"></textarea>
-
-      <div class="attire-editor">
-        <div class="attire-editor-label">Attire options</div>
-        <div id="attire-rows"></div>
-        <button type="button" id="add-attire-row">+ Add attire option</button>
-      </div>
+      <textarea name="appearance_description" placeholder="Visual appearance for the prompt (hair, build, face, clothing -- whatever you want the model to preserve)"></textarea>
 
       <textarea name="properties" placeholder='Other custom properties as JSON, e.g. {"personality": "wry, guarded"}'></textarea>
       <div class="scene-form-actions">
@@ -86,7 +80,6 @@
         <div class="casting-builder-label">Characters in this scene</div>
         <div class="casting-add-row">
           <select id="casting-character-select"></select>
-          <select id="casting-attire-select"></select>
           <button type="button" id="add-casting-btn">+ Add Character</button>
         </div>
         <div id="staged-castings-list"></div>
@@ -143,7 +136,7 @@
         <p class="field-hint">
           Where ComfyUI's LoadImage/LoadAudio nodes look for reference files. Scene Forge doesn't
           read or write here -- it's just a reminder of where to browse from when picking a face,
-          attire, voice, or location reference path.
+          voice, or location reference path.
         </p>
         <input type="text" name="comfyui_input_dir" id="config-input-dir" placeholder="/path/to/ComfyUI/input">
       </div>
