@@ -370,6 +370,12 @@ def generate_sequence_workflow(template, *, location, characters, sequence, scen
     # sequence doesn't need (or consume) an audio reference slot. This is what
     # keeps a larger non-speaking cast from needlessly hitting the 3-audio cap.
     speaking_char_ids = {b.character_id for b in sequence.beats if b.kind == "dialogue"}
+    # Per-scene opt-out: a casting can turn off voice reference wiring for its
+    # character even when they'd otherwise qualify (has voice_audio, speaks
+    # this sequence) -- e.g. to get fresh TTS instead of voice-cloning them
+    # in this particular scene. Defaults to included if a character somehow
+    # isn't in the casting list at all (shouldn't normally happen).
+    include_voice_by_char_id = {c.character_id: c.include_voice for c in scene.character_castings}
 
     character_slots = {}  # character.id -> {"face": slot_name, "voice": slot_name}
 
@@ -396,6 +402,8 @@ def generate_sequence_workflow(template, *, location, characters, sequence, scen
                     continue  # no voice reference for this character at all
                 if character.id not in speaking_char_ids:
                     continue  # has a voice reference, but doesn't speak this sequence
+                if not include_voice_by_char_id.get(character.id, True):
+                    continue  # voice reference opted out of for this scene
 
             new_node = copy.deepcopy(src_node)
             new_node["id"] = next_node_id()

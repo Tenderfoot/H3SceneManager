@@ -350,7 +350,8 @@ def delete_location(lid):
 
 def _parse_castings(raw_list):
     return [
-        CharacterCasting(character_id=item["character_id"])
+        CharacterCasting(character_id=item["character_id"],
+                          include_voice=bool(item.get("include_voice", True)))
         for item in raw_list or [] if item.get("character_id")
     ]
 
@@ -819,6 +820,9 @@ def _new_run_job(scene):
         "started_at": time.time(),
         "finished_at": None,
         "cancel_requested": False,
+        "output_folder": None,    # ComfyUI output subfolder this run is writing into,
+                                    # resolved once _run_scene_job actually starts (see
+                                    # _pick_run_output_folder) -- None until then
         "sequences": [
             {
                 "id": s.id, "index": s.index,
@@ -835,6 +839,36 @@ def _new_run_job(scene):
             for s in sorted(scene.sequences, key=lambda s: s.index)
         ],
     }
+
+
+def _pick_run_output_folder(scene, ordered_sequences, comfyui_output_dir):
+    """Decides which ComfyUI output subfolder (under COMFYUI_OUTPUT_DIR) an
+    entire scene run should write into.
+
+    - If any sequence already has a recorded output_video_path (this run is
+      CONTINUING a partial previous run, not starting fresh -- e.g. you added
+      a sequence and only it needs rendering), reuse that same folder for
+      consistency. It's read directly off the first already-rendered
+      sequence's actual path, so a run resuming mid-way through an earlier
+      versioned folder (e.g. "..._2") keeps landing there rather than
+      reverting to the unsuffixed base name.
+    - Otherwise (a genuinely fresh run -- nothing rendered yet, e.g. right
+      after a manual status reset), pick a folder name that doesn't already
+      exist on disk: the scene's base slug if free, else "<slug>_2",
+      "<slug>_3", etc. -- so re-running a scene from scratch never mixes a
+      new attempt's files into an older attempt's folder.
+    """
+    for seq in ordered_sequences:
+        if seq.status == "rendered" and seq.output_video_path:
+            return os.path.basename(os.path.dirname(seq.output_video_path))
+
+    base_slug = slugify(scene.name)
+    candidate = base_slug
+    n = 2
+    while os.path.isdir(os.path.join(comfyui_output_dir, candidate)):
+        candidate = f"{base_slug}_{n}"
+        n += 1
+    return candidate
 
 
 def _run_scene_job(scid, prompt_format, randomize_seed):
@@ -868,6 +902,8 @@ def _run_scene_job(scid, prompt_format, randomize_seed):
 
         location, scene_characters = _gather_scene_generation_context(scene)
         ordered = sorted(scene.sequences, key=lambda s: s.index)
+        run_output_folder = _pick_run_output_folder(scene, ordered, cfg["comfyui_output_dir"])
+        _touch_job(lambda job: job.update(output_folder=run_output_folder))
 
         previous_output_path = None
         for sequence in ordered:
@@ -888,6 +924,7 @@ def _run_scene_job(scid, prompt_format, randomize_seed):
                 previous_output_path=previous_output_path,
                 prompt_format=prompt_format,
                 randomize_seed=randomize_seed,
+                output_prefix=f"{run_output_folder}/{run_output_folder}_{sequence.index + 1}",
             )
             out_path = _sequence_workflow_path(scene, sequence)
             with open(out_path, "w") as f:

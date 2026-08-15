@@ -144,11 +144,16 @@ class Sequence:
 
 @dataclass
 class CharacterCasting:
-    """One character's presence in a scene. Kept as its own small wrapper
-    (rather than a flat list of character ids) so a scene's cast list has
-    somewhere to grow into if a future per-scene, per-character setting
-    shows up again -- currently just wraps character_id."""
+    """One character's presence in a scene, plus a couple of per-scene
+    settings for how they're generated."""
     character_id: str
+    include_voice: bool = True  # whether this character's voice_audio reference
+                                 # gets wired in for this scene. Only matters when
+                                 # they'd otherwise get a Voice node at all (they
+                                 # need voice_audio set AND a dialogue beat in the
+                                 # sequence) -- this is an additional opt-out on
+                                 # top of those, e.g. for generating fresh TTS
+                                 # instead of voice-cloning this character here.
 
     def to_dict(self):
         return asdict(self)

@@ -342,7 +342,7 @@ async function refreshSceneLocationSelect() {
     list.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join("");
 }
 
-let stagedCastings = [];       // [{character_id}] being built for the scene form
+let stagedCastings = [];       // [{character_id, include_voice}] being built for the scene form
 let allCharactersCache = [];   // refreshed whenever the casting picker updates
 
 async function refreshCastingCharacterSelect() {
@@ -358,7 +358,8 @@ async function refreshCastingCharacterSelect() {
 $("#add-casting-btn").addEventListener("click", () => {
   const charId = $("#casting-character-select").value;
   if (!charId) return;
-  stagedCastings.push({ character_id: charId });
+  const includeVoice = $("#casting-include-voice").checked;
+  stagedCastings.push({ character_id: charId, include_voice: includeVoice });
   refreshCastingCharacterSelect();  // rebuilds the available list (now excluding this one) + re-renders staged list
 });
 
@@ -376,12 +377,22 @@ function renderStagedCastings() {
   container.innerHTML = stagedCastings.map((sc, i) => {
     const character = allCharactersCache.find(c => c.id === sc.character_id);
     const name = character ? character.name : "?";
+    const hasVoice = character && character.voice_audio;
     return `
       <div class="staged-casting-row" data-index="${i}">
         <span>${name}</span>
+        <label class="casting-voice-toggle">
+          <input type="checkbox" data-toggle-voice="${i}" ${sc.include_voice ? "checked" : ""} ${hasVoice ? "" : "disabled"}>
+          Include voice reference
+        </label>
         <button type="button" data-remove-casting="${i}">Remove</button>
       </div>`;
   }).join("");
+  $$("[data-toggle-voice]", container).forEach(cb => {
+    cb.onchange = () => {
+      stagedCastings[parseInt(cb.dataset.toggleVoice, 10)].include_voice = cb.checked;
+    };
+  });
   $$("[data-remove-casting]", container).forEach(btn => {
     btn.onclick = () => {
       stagedCastings.splice(parseInt(btn.dataset.removeCasting, 10), 1);
@@ -849,12 +860,13 @@ function startRunPolling() {
 
 // ---------- rendering the panel from local state ----------
 function runSummaryText(run) {
+  const folderNote = run.output_folder ? ` (folder: ${run.output_folder})` : "";
   if (run.state === "none") return "Not started — Run Scene submits every un-rendered sequence to ComfyUI in order.";
   if (run.state === "running") {
     const active = (run.sequences || []).find(s => s.state && !["pending", "rendered"].includes(s.state));
-    return active ? `Running — sequence #${active.index} (${active.state})…` : "Running…";
+    return (active ? `Running — sequence #${active.index} (${active.state})…` : "Running…") + folderNote;
   }
-  if (run.state === "done") return "Run complete — every sequence rendered.";
+  if (run.state === "done") return `Run complete — every sequence rendered.${folderNote}`;
   if (run.state === "error") return `Run stopped: ${run.error || "unknown error"}`;
   if (run.state === "cancelled") return "Run cancelled.";
   return "";
