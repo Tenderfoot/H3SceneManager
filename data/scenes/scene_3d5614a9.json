@@ -1,0 +1,75 @@
+{
+  "id": "scene_3d5614a9",
+  "name": "They Reallly Cling On",
+  "setting_id": "set_8dc9e56f",
+  "character_castings": [
+    {
+      "character_id": "char_3fa58869",
+      "attire_id": ""
+    },
+    {
+      "character_id": "char_35918688",
+      "attire_id": ""
+    }
+  ],
+  "non_diegetic_music": "",
+  "summary_premise": "Worf and Geordi discuss family in a turbolift.",
+  "style_preset": "cinematic_soft",
+  "style_opening": "The target video is in a cinematic, literary style with soft lighting and a slightly desaturated color palette.",
+  "prompt_format": "lean",
+  "sequences": [
+    {
+      "id": "seq_b17477d8",
+      "index": 0,
+      "duration": 8.0,
+      "beats": [
+        {
+          "id": "beat_b7a1fe71",
+          "kind": "action",
+          "text": "Geordi and Worf stand in a turbolift. Geordi turns to ask something to Worf.",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "timestamp": ""
+        },
+        {
+          "id": "beat_cd0de01a",
+          "kind": "dialogue",
+          "text": "",
+          "character_id": "char_3fa58869",
+          "line": "Have you been spending time with Alexander?",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "timestamp": ""
+        },
+        {
+          "id": "beat_8601ec2e",
+          "kind": "dialogue",
+          "text": "",
+          "character_id": "char_35918688",
+          "line": "Too much. Its hard being a father, some kids really cling on.",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "timestamp": ""
+        },
+        {
+          "id": "beat_a5543725",
+          "kind": "action",
+          "text": "Geordi starts sniggering. Worf shoots him an angry look",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "timestamp": ""
+        }
+      ],
+      "status": "generated",
+      "output_video_path": ""
+    }
+  ]
+}

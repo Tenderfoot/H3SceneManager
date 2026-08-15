@@ -1,8 +1,8 @@
 {
   "id": "e3f2b845-8f2c-4b5a-9caf-eac1029d3e7e",
   "revision": 0,
-  "last_node_id": 153,
-  "last_link_id": 303,
+  "last_node_id": 154,
+  "last_link_id": 304,
   "nodes": [
     {
       "id": 120,
@@ -523,7 +523,7 @@
       ],
       "properties": {},
       "widgets_values": [
-        "video/scene_022784df/01_seq_4aa2255f",
+        "video/scene_22ac7963/01_seq_6108b0a1",
         "auto",
         "auto"
       ]
@@ -557,12 +557,12 @@
           "links": null
         }
       ],
-      "title": "Setting: Starship Corridor",
+      "title": "Setting: Starship Bridge",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "star trek hallway.png",
+        "tng bridge occupied.png",
         "image"
       ]
     },
@@ -697,6 +697,13 @@
           "shape": 7,
           "type": "IMAGE",
           "link": 303
+        },
+        {
+          "label": "ref_image_6",
+          "name": "ref_images.ref_image_6",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 304
         }
       ],
       "outputs": [
@@ -764,7 +771,7 @@
       },
       "widgets_values": [
         "16:9 (Widescreen)",
-        0.4,
+        0.2,
         32
       ],
       "color": "#322",
@@ -799,7 +806,7 @@
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "subject_definitions:\n<Picture 2> is the first frame of [Shot 1], continuing directly from the end of the previous sequence.\n<Subject 1> is the Starship Corridor environment in <Picture 1>, A corridor in a Star Trek: The Next Generation starship..\n<Subject 2> is Michael Scott, appearing in <Picture 3> and <Picture 4>.\n<Subject 3> is Dwight Schrute, appearing in <Picture 5> and <Picture 6>.\n\nsummary:\n[keyframe completion + reference generation] <Subject 2> walks down a corridor, meets with <Subject 3>, and they continue to walk together while discussing a holodeck issue.\n\nretention_analysis:\n<Picture 2> ([Shot 1] first frame): fully_preserved - the frame is used unmodified as the exact starting point of this shot.\n<Subject 1> (appears in [Shot 1], [Shot 2]): fully_preserved - the environment's defining features are retained.\n<Subject 2> (appears in [Shot 1]): fully_preserved - the character's identity and appearance are retained.\n<Subject 3> (appears in [Shot 2]): fully_preserved - the character's identity and appearance are retained.\n\ndetailed_description:\nIn the style of Star Trek: The Next Generation\n[Shot 1] The shot begins from <Picture 2>. The shot establishes <Subject 1>, A corridor in a Star Trek: The Next Generation starship.. <Subject 2> (S1) appears in this shot. <Subject 2> (S1) says, <d>[English] I hear there is a problem with the hollowdeck</d>\n[Shot 2] <Subject 3> appears in this shot. <Subject 3> listens attentively\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A"
+        "For the target video, at 0.00 seconds into the target video, <Picture 2> (from [Shot 1]) is fully referenced.\n\nThe bridge crew is present when Jean-Luc goes off the rails.\n\nThe target video is in a cinematic, literary style with soft lighting and a slightly desaturated color palette.\n\nintegrated_multimodal_description:\n[Shot 1] A shot establishes the Starship Bridge shown in <Picture 1>, preserving A starship bridge.. Jean-Luc Picard, shown in <Picture 3> appears. William T. Riker, shown in <Picture 4> appears. Deanna Troi, shown in <Picture 6> appears. Jean-Luc Picard is sitting in the Captains chair on the Enterprise bridge. On either side of him is Deanna Troi and William T. Riker.\n[Shot 2] Jean-Luc Picard (S1) says in a flat, deadpan tone: <d>[English] I was just tricking you Deanna, there is no alien presence, I just want to see tits!</d>\n[Shot 3] Deanna Troi (S2) says: <d>[English] I'm sensing. I'm sensing that he did trick me, and he does want to see tits.</d>\n[Shot 4] Jean-Luc Picard (S1) says in a commanding, authoritative tone: <d>[English] Ha!</d>\n[Shot 5] William T. Riker (S3) says in a confident, assertive tone: <d>[English] Captain we're being approached by an alien ship, get it together</d>\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A"
       ],
       "color": "#322",
       "bgcolor": "#533"
@@ -833,7 +840,7 @@
         "Node name for S&R": "PrimitiveFloat"
       },
       "widgets_values": [
-        5.0
+        10.0
       ],
       "color": "#322",
       "bgcolor": "#533"
@@ -936,7 +943,7 @@
         "Node name for S&R": "FirstFrameLastFrameExtractor"
       },
       "widgets_values": [
-        "00_seq_4ab91279_00008_.mp4"
+        "C:\\Users\\grant\\OneDrive\\Desktop\\comfyui\\ComfyUI\\output\\video\\scene_22ac7963\\00_seq_cdda657f_00002_.mp4"
       ]
     },
     {
@@ -966,53 +973,17 @@
           "links": null
         }
       ],
-      "title": "Face: Michael Scott",
+      "title": "Face: Jean-Luc Picard",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "michael scott.png",
+        "picard.png",
         "image"
       ]
     },
     {
       "id": 151,
-      "type": "LoadImage",
-      "pos": [
-        -2691.1686193234877,
-        4225.682491880535
-      ],
-      "size": [
-        290,
-        330
-      ],
-      "flags": {},
-      "order": 13,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": []
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "title": "Attire: Michael Scott (Starfleet Captain Uniform)",
-      "properties": {
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "michael_attire.png",
-        "image"
-      ]
-    },
-    {
-      "id": 152,
       "type": "LoadImage",
       "pos": [
         -2229.654891330235,
@@ -1038,28 +1009,28 @@
           "links": null
         }
       ],
-      "title": "Face: Dwight Schrute",
+      "title": "Face: William T. Riker",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "dwight.png",
+        "rikerface.png",
         "image"
       ]
     },
     {
-      "id": 153,
+      "id": 152,
       "type": "LoadImage",
       "pos": [
-        -1872.718137869574,
-        4225.682491880535
+        -1411.2044098763213,
+        4221.375160838343
       ],
       "size": [
         290,
         330
       ],
       "flags": {},
-      "order": 13,
+      "order": 7,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1074,12 +1045,84 @@
           "links": null
         }
       ],
-      "title": "Attire: Dwight Schrute (Starfleet Chief of Security Uniform)",
+      "title": "Face: Worf",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "dwight_attire.png",
+        "worf.png",
+        "image"
+      ]
+    },
+    {
+      "id": 153,
+      "type": "LoadImage",
+      "pos": [
+        -592.7539284224076,
+        4221.375160838343
+      ],
+      "size": [
+        290,
+        330
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "Face: Deanna Troi",
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "troiface.png",
+        "image"
+      ]
+    },
+    {
+      "id": 154,
+      "type": "LoadImage",
+      "pos": [
+        225.69655303150603,
+        4221.375160838343
+      ],
+      "size": [
+        290,
+        330
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "Face: Geordi La Forge",
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "geordiface.png",
         "image"
       ]
     }
@@ -1316,6 +1359,14 @@
       136,
       16,
       "IMAGE"
+    ],
+    [
+      304,
+      154,
+      0,
+      136,
+      17,
+      "IMAGE"
     ]
   ],
   "groups": [
@@ -1381,7 +1432,7 @@
     },
     {
       "id": 7,
-      "title": "Character (Michael Scott)",
+      "title": "Character (Jean-Luc Picard)",
       "bounding": [
         -3087.0250937306782,
         4124.857593177093,
@@ -1393,9 +1444,45 @@
     },
     {
       "id": 8,
-      "title": "Character (Dwight Schrute)",
+      "title": "Character (William T. Riker)",
       "bounding": [
         -2268.5746122767646,
+        4124.857593177093,
+        738.4504814539137,
+        695.6445574329528
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 9,
+      "title": "Character (Worf)",
+      "bounding": [
+        -1450.124130822851,
+        4124.857593177093,
+        738.4504814539137,
+        695.6445574329528
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 10,
+      "title": "Character (Deanna Troi)",
+      "bounding": [
+        -631.6736493689373,
+        4124.857593177093,
+        738.4504814539137,
+        695.6445574329528
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 11,
+      "title": "Character (Geordi La Forge)",
+      "bounding": [
+        186.77683208497638,
         4124.857593177093,
         738.4504814539137,
         695.6445574329528

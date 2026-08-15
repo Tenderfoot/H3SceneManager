@@ -69,6 +69,7 @@ def create_character():
         name=data["name"],
         face_image=data.get("face_image", ""),
         voice_audio=data.get("voice_audio", ""),
+        category=data.get("category", ""),
         attire_options=_parse_attire_options(data.get("attire_options", [])),
         appearance_description=data.get("appearance_description", ""),
         properties=data.get("properties", {}),
@@ -87,6 +88,7 @@ def update_character(cid):
         id=cid, name=data.get("name", existing.name),
         face_image=data.get("face_image", existing.face_image),
         voice_audio=data.get("voice_audio", existing.voice_audio),
+        category=data.get("category", existing.category),
         attire_options=(_parse_attire_options(data["attire_options"])
                          if "attire_options" in data else existing.attire_options),
         appearance_description=data.get("appearance_description", existing.appearance_description),
@@ -114,7 +116,7 @@ def create_setting():
     s = Setting.create(
         name=data["name"],
         reference_image=data.get("reference_image", ""),
-        ambient_audio=data.get("ambient_audio", ""),
+        category=data.get("category", ""),
         visual_description=data.get("visual_description", ""),
         soundscape_description=data.get("soundscape_description", ""),
         properties=data.get("properties", {}),
@@ -131,7 +133,7 @@ def update_setting(sid):
     data = request.json
     updated = Setting(id=sid, name=data.get("name", existing.name),
                        reference_image=data.get("reference_image", existing.reference_image),
-                       ambient_audio=data.get("ambient_audio", existing.ambient_audio),
+                       category=data.get("category", existing.category),
                        visual_description=data.get("visual_description", existing.visual_description),
                        soundscape_description=data.get("soundscape_description", existing.soundscape_description),
                        properties=data.get("properties", existing.properties))
@@ -172,6 +174,7 @@ def create_scene():
         summary_premise=data.get("summary_premise", ""),
         style_preset=style_preset,
         style_opening=style_opening,
+        prompt_format=data.get("prompt_format", "lean"),
     )
     scenes.save(scene)
     return jsonify(scene.to_dict()), 201
@@ -203,6 +206,7 @@ def update_scene(scid):
     existing.summary_premise = data.get("summary_premise", existing.summary_premise)
     existing.style_preset = style_preset
     existing.style_opening = style_opening
+    existing.prompt_format = data.get("prompt_format", existing.prompt_format)
     scenes.save(existing)
     return jsonify(existing.to_dict())
 
@@ -433,6 +437,58 @@ def delete_beat(scid, seqid, beatid):
             scenes.save(scene)
             return "", 204
     return jsonify({"error": "sequence not found"}), 404
+
+
+@app.route("/api/scenes/<scid>/sequences_bulk", methods=["PUT"])
+def bulk_save_sequences(scid):
+    """
+    Replaces this scene's entire sequences (and their beats) list in one
+    shot. This is the ONLY point where the sequence-editor tab's edits are
+    actually persisted -- that tab stages all add/edit/delete/reorder
+    actions in a local in-browser working copy and never calls the
+    per-sequence/per-beat endpoints above individually; clicking "Save"
+    sends the whole working copy here at once.
+
+    Delivery presets are resolved server-side here (same as add_beat/
+    update_beat), since the client only ever holds the preset key + custom
+    text locally, not the resolved phrase, until save time.
+    """
+    scene = scenes.load(scid)
+    if not scene:
+        return jsonify({"error": "scene not found"}), 404
+    data = request.json
+    raw_sequences = data.get("sequences", [])
+
+    new_sequences = []
+    for i, raw_seq in enumerate(raw_sequences):
+        beats = []
+        for raw_beat in raw_seq.get("beats", []):
+            delivery_preset, delivery, err = _resolve_delivery(raw_beat)
+            if err:
+                return jsonify({"error": err}), 400
+            beats.append(Beat(
+                id=raw_beat.get("id") or new_id("beat"),
+                kind=raw_beat.get("kind", "action"),
+                text=raw_beat.get("text", ""),
+                character_id=raw_beat.get("character_id", ""),
+                line=raw_beat.get("line", ""),
+                language=raw_beat.get("language", "English"),
+                delivery_preset=delivery_preset,
+                delivery=delivery,
+                timestamp=raw_beat.get("timestamp", ""),
+            ))
+        new_sequences.append(Sequence(
+            id=raw_seq.get("id") or new_id("seq"),
+            index=i,
+            duration=float(raw_seq.get("duration", 8.0)),
+            beats=beats,
+            status=raw_seq.get("status", "pending"),
+            output_video_path=raw_seq.get("output_video_path", ""),
+        ))
+
+    scene.sequences = new_sequences
+    scenes.save(scene)
+    return jsonify(scene.to_dict())
 
 
 @app.route("/api/scenes/<scid>/sequences/<seqid>/resolve_output", methods=["POST"])

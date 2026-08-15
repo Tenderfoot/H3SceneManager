@@ -1,8 +1,8 @@
 {
   "id": "e3f2b845-8f2c-4b5a-9caf-eac1029d3e7e",
   "revision": 0,
-  "last_node_id": 149,
-  "last_link_id": 297,
+  "last_node_id": 154,
+  "last_link_id": 304,
   "nodes": [
     {
       "id": 120,
@@ -523,7 +523,7 @@
       ],
       "properties": {},
       "widgets_values": [
-        "video/MiniMax_H3",
+        "video/scene_22ac7963/02_seq_1f51c8dc",
         "auto",
         "auto"
       ]
@@ -557,50 +557,12 @@
           "links": null
         }
       ],
-      "title": "{{ Setting Image }}",
+      "title": "Setting: Starship Bridge",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "star trek hallway.png",
-        "image"
-      ]
-    },
-    {
-      "id": 139,
-      "type": "LoadImage",
-      "pos": [
-        -3048.1053727841486,
-        4221.375160838343
-      ],
-      "size": [
-        290,
-        330
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            296
-          ]
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "title": "{{ Face N }}",
-      "properties": {
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "char.png",
+        "tng bridge occupied.png",
         "image"
       ]
     },
@@ -639,35 +601,35 @@
           "name": "ref_images.ref_image_0",
           "shape": 7,
           "type": "IMAGE",
-          "link": 294
+          "link": 298
         },
         {
           "label": "ref_image_1",
           "name": "ref_images.ref_image_1",
           "shape": 7,
           "type": "IMAGE",
-          "link": 295
+          "link": 299
         },
         {
           "label": "ref_image_2",
           "name": "ref_images.ref_image_2",
           "shape": 7,
           "type": "IMAGE",
-          "link": 296
+          "link": 300
         },
         {
           "label": "ref_image_3",
           "name": "ref_images.ref_image_3",
           "shape": 7,
           "type": "IMAGE",
-          "link": 297
+          "link": 301
         },
         {
           "label": "ref_image_4",
           "name": "ref_images.ref_image_4",
           "shape": 7,
           "type": "IMAGE",
-          "link": null
+          "link": 302
         },
         {
           "label": "ref_video_0",
@@ -688,7 +650,7 @@
           "name": "ref_audios.ref_audio_0",
           "shape": 7,
           "type": "AUDIO",
-          "link": 287
+          "link": null
         },
         {
           "label": "ref_audio_1",
@@ -728,6 +690,20 @@
             "name": "length"
           },
           "link": 275
+        },
+        {
+          "label": "ref_image_5",
+          "name": "ref_images.ref_image_5",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 303
+        },
+        {
+          "label": "ref_image_6",
+          "name": "ref_images.ref_image_6",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 304
         }
       ],
       "outputs": [
@@ -830,7 +806,7 @@
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "<Picture 1> is the first frame of [Shot 1], {{ Pickup_Description }}\n\n<Picture 2> is the setting of the scene, {{ Setting_Description }}"
+        "For the target video, at 0.00 seconds into the target video, <Picture 2> (from [Shot 1]) is fully referenced.\n\nThe bridge crew is present when Jean-Luc goes off the rails.\n\nThe target video is in a cinematic, literary style with soft lighting and a slightly desaturated color palette.\n\nintegrated_multimodal_description:\n[Shot 1] A shot establishes the Starship Bridge shown in <Picture 1>, preserving A starship bridge.. Jean-Luc Picard, shown in <Picture 3> appears. William T. Riker, shown in <Picture 4> appears. Deanna Troi, shown in <Picture 6> appears. Jean-Luc Picard is sitting in his captains chair on the bridge of the starship Enterprise. On either side of him, is William T. Riker and Deanna Troi.\n[Shot 2] Jean-Luc Picard (S1) says in a flat, deadpan tone: <d>[English] Fine. I would really rather be looking at tits though.</d>\n[Shot 3] William T. Riker (S2) says in an urgent, rushed tone: <d>[English] Captain!</d>\n[Shot 4] Jean-Luc Picard (S1) says: <d>[English] Computer. On Screen.</d>\n[Shot 5] The camera now cuts to the viewscreen of the starship enterprise. It shows the alien with 3 tits from total recall.\n\noverall_soundscape:\nN/A\n\nnon_diegetic_music:\nN/A"
       ],
       "color": "#322",
       "bgcolor": "#533"
@@ -864,7 +840,7 @@
         "Node name for S&R": "PrimitiveFloat"
       },
       "widgets_values": [
-        8
+        8.0
       ],
       "color": "#322",
       "bgcolor": "#533"
@@ -927,40 +903,6 @@
       ]
     },
     {
-      "id": 144,
-      "type": "LoadAudio",
-      "pos": [
-        -2862.6963027044926,
-        4612.492037079445
-      ],
-      "size": [
-        282.78125,
-        138
-      ],
-      "flags": {},
-      "order": 11,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "AUDIO",
-          "type": "AUDIO",
-          "links": [
-            287
-          ]
-        }
-      ],
-      "title": "{{ Voice N }}",
-      "properties": {
-        "Node name for S&R": "LoadAudio"
-      },
-      "widgets_values": [
-        "wowsmargotaudio.wav",
-        null,
-        null
-      ]
-    },
-    {
       "id": 148,
       "type": "FirstFrameLastFrameExtractor",
       "pos": [
@@ -1001,31 +943,29 @@
         "Node name for S&R": "FirstFrameLastFrameExtractor"
       },
       "widgets_values": [
-        "C:\\Users\\grant\\OneDrive\\Desktop\\comfyui\\ComfyUI\\output\\video\\{{oldfilename}}"
+        "C:\\Users\\grant\\OneDrive\\Desktop\\comfyui\\ComfyUI\\output\\video\\scene_22ac7963\\01_seq_6108b0a1_00002_.mp4"
       ]
     },
     {
-      "id": 149,
+      "id": 150,
       "type": "LoadImage",
       "pos": [
-        -2691.1686193234877,
-        4225.682491880535
+        -3048.1053727841486,
+        4221.375160838343
       ],
       "size": [
         290,
         330
       ],
       "flags": {},
-      "order": 13,
+      "order": 7,
       "mode": 0,
       "inputs": [],
       "outputs": [
         {
           "name": "IMAGE",
           "type": "IMAGE",
-          "links": [
-            297
-          ]
+          "links": []
         },
         {
           "name": "MASK",
@@ -1033,12 +973,156 @@
           "links": null
         }
       ],
-      "title": "{{ Attire N }}",
+      "title": "Face: Jean-Luc Picard",
       "properties": {
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "example.png",
+        "picard.png",
+        "image"
+      ]
+    },
+    {
+      "id": 151,
+      "type": "LoadImage",
+      "pos": [
+        -2229.654891330235,
+        4221.375160838343
+      ],
+      "size": [
+        290,
+        330
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "Face: William T. Riker",
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "rikerface.png",
+        "image"
+      ]
+    },
+    {
+      "id": 152,
+      "type": "LoadImage",
+      "pos": [
+        -1411.2044098763213,
+        4221.375160838343
+      ],
+      "size": [
+        290,
+        330
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "Face: Worf",
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "worf.png",
+        "image"
+      ]
+    },
+    {
+      "id": 153,
+      "type": "LoadImage",
+      "pos": [
+        -592.7539284224076,
+        4221.375160838343
+      ],
+      "size": [
+        290,
+        330
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "Face: Deanna Troi",
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "troiface.png",
+        "image"
+      ]
+    },
+    {
+      "id": 154,
+      "type": "LoadImage",
+      "pos": [
+        225.69655303150603,
+        4221.375160838343
+      ],
+      "size": [
+        290,
+        330
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "Face: Geordi La Forge",
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "geordiface.png",
         "image"
       ]
     }
@@ -1229,43 +1313,59 @@
       "LATENT"
     ],
     [
-      287,
-      144,
+      298,
+      147,
       0,
-      136,
-      10,
-      "AUDIO"
-    ],
-    [
-      294,
-      148,
-      1,
       136,
       3,
       "IMAGE"
     ],
     [
-      295,
-      147,
-      0,
+      299,
+      148,
+      1,
       136,
       4,
       "IMAGE"
     ],
     [
-      296,
-      139,
+      300,
+      150,
       0,
       136,
       5,
       "IMAGE"
     ],
     [
-      297,
-      149,
+      301,
+      151,
       0,
       136,
       6,
+      "IMAGE"
+    ],
+    [
+      302,
+      152,
+      0,
+      136,
+      7,
+      "IMAGE"
+    ],
+    [
+      303,
+      153,
+      0,
+      136,
+      16,
+      "IMAGE"
+    ],
+    [
+      304,
+      154,
+      0,
+      136,
+      17,
       "IMAGE"
     ]
   ],
@@ -1319,8 +1419,20 @@
       "flags": {}
     },
     {
-      "id": 5,
-      "title": "{{ Character N }}",
+      "id": 6,
+      "title": "{{ Establishing References }}",
+      "bounding": [
+        -3120.0314851263697,
+        3308.3927345250972,
+        794.2551364155984,
+        631.4436638758903
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 7,
+      "title": "Character (Jean-Luc Picard)",
       "bounding": [
         -3087.0250937306782,
         4124.857593177093,
@@ -1331,13 +1443,49 @@
       "flags": {}
     },
     {
-      "id": 6,
-      "title": "{{ Establishing References }}",
+      "id": 8,
+      "title": "Character (William T. Riker)",
       "bounding": [
-        -3120.0314851263697,
-        3308.3927345250972,
-        794.2551364155984,
-        631.4436638758903
+        -2268.5746122767646,
+        4124.857593177093,
+        738.4504814539137,
+        695.6445574329528
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 9,
+      "title": "Character (Worf)",
+      "bounding": [
+        -1450.124130822851,
+        4124.857593177093,
+        738.4504814539137,
+        695.6445574329528
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 10,
+      "title": "Character (Deanna Troi)",
+      "bounding": [
+        -631.6736493689373,
+        4124.857593177093,
+        738.4504814539137,
+        695.6445574329528
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 11,
+      "title": "Character (Geordi La Forge)",
+      "bounding": [
+        186.77683208497638,
+        4124.857593177093,
+        738.4504814539137,
+        695.6445574329528
       ],
       "color": "#3f789e",
       "flags": {}

@@ -49,7 +49,7 @@ non-speaking cast from needlessly hitting the 3-audio cap.
 import copy
 import re
 
-from .prompt_compiler import compile_prompt
+from .prompt_compiler import compile_prompt, compile_lean_prompt
 
 SINK_NODE_TYPE = "MiniMaxH3ReferenceToVideo"
 CHARACTER_GROUP_TITLE = "{{ Character N }}"
@@ -399,9 +399,12 @@ def generate_sequence_workflow(template, *, setting, characters, sequence, scene
         if node.get("type") == "SaveVideo":
             node["widgets_values"][0] = prefix
 
-    # --- Compile the full six-section prompt and drop it wholesale into the
-    # prompt widget (this fully replaces the template's example prompt text) ---
-    compiled_prompt = compile_prompt(
+    # --- Compile the prompt (full six-section rewrite-guide format, or the
+    # leaner base-guide-style format -- scene.prompt_format decides) and drop
+    # it wholesale into the prompt widget (fully replaces the template's
+    # example prompt text) ---
+    compiler_fn = compile_lean_prompt if scene.prompt_format == "lean" else compile_prompt
+    compiled_prompt = compiler_fn(
         setting=setting, characters=characters, sequence=sequence, scene=scene,
         setting_picture_slot=setting_picture_slot,
         prev_frame_picture_slot=prev_frame_picture_slot,

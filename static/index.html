@@ -21,6 +21,13 @@
     <form id="character-form" class="entity-form">
       <input type="hidden" name="id">
       <input type="text" name="name" placeholder="Name" required>
+
+      <div class="field-group">
+        <label class="field-label" for="character-category-select">Category</label>
+        <select name="category_select" id="character-category-select"></select>
+        <input type="text" name="category_new" id="character-category-new" placeholder="New category name" style="display:none">
+      </div>
+
       <input type="text" name="face_image" placeholder="Absolute path to face reference image">
       <input type="text" name="voice_audio" placeholder="Absolute path to voice reference audio">
       <textarea name="appearance_description" placeholder="Visual appearance for the prompt (hair, build, face -- not clothing)"></textarea>
@@ -42,8 +49,14 @@
     <form id="setting-form" class="entity-form">
       <input type="hidden" name="id">
       <input type="text" name="name" placeholder="Name" required>
+
+      <div class="field-group">
+        <label class="field-label" for="setting-category-select">Category</label>
+        <select name="category_select" id="setting-category-select"></select>
+        <input type="text" name="category_new" id="setting-category-new" placeholder="New category name" style="display:none">
+      </div>
+
       <input type="text" name="reference_image" placeholder="Absolute path to reference image">
-      <input type="text" name="ambient_audio" placeholder="Absolute path to ambient audio (descriptive-only, not wired as a reference asset)">
       <textarea name="visual_description" placeholder="Visual description of the environment for the prompt"></textarea>
       <textarea name="soundscape_description" placeholder="overall_soundscape text, e.g. 'A low ambient hum continues throughout.'"></textarea>
       <textarea name="properties" placeholder='Other custom properties as JSON'></textarea>
@@ -94,19 +107,23 @@
       </div>
 
       <textarea name="non_diegetic_music" placeholder="Background score description (non_diegetic_music), audible only to the audience"></textarea>
+
+      <div class="field-group">
+        <label class="field-label" for="scene-prompt-format">Prompt format</label>
+        <p class="field-hint">
+          Lean uses MiniMax's base prompt guide (leaner, no reference-analysis scaffolding --
+          experimental, since H3 has no local rewriter to produce that scaffolding from anyway).
+          Full uses the six-section full-reference rewrite-guide format documented for Ref2VA.
+        </p>
+        <select name="prompt_format" id="scene-prompt-format">
+          <option value="lean">Lean (base-guide style)</option>
+          <option value="full">Full (six-section rewrite-guide style)</option>
+        </select>
+      </div>
+
       <button type="submit">Save Scene</button>
     </form>
     <div id="scene-list" class="entity-list"></div>
-
-    <div id="scene-detail" style="display:none">
-      <h3 id="scene-detail-title"></h3>
-      <div id="scene-detail-info" class="scene-info"></div>
-      <form id="sequence-form" class="entity-form">
-        <input type="number" name="duration" min="5" max="10" step="0.5" value="8" placeholder="Duration (5-10s)">
-        <button type="submit">Add Sequence</button>
-      </form>
-      <div id="sequence-list"></div>
-    </div>
   </section>
 </main>
 

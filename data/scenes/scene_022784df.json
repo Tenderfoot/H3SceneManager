@@ -16,6 +16,7 @@
   "summary_premise": "Michael walks down a corridor, meets with Dwight, and they continue to walk together while discussing a holodeck issue.",
   "style_preset": "custom",
   "style_opening": "In the style of Star Trek: The Next Generation",
+  "prompt_format": "lean",
   "sequences": [
     {
       "id": "seq_4ab91279",
@@ -42,10 +43,21 @@
           "language": "English",
           "delivery_preset": "",
           "delivery": "",
-          "timestamp": ""
+          "timestamp": "00:02.000"
+        },
+        {
+          "id": "beat_e35d6c83",
+          "kind": "action",
+          "text": "Dwight and Michael continue to walk down the hall together",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "timestamp": "00:03.000"
         }
       ],
-      "status": "rendered",
+      "status": "generated",
       "output_video_path": "00_seq_4ab91279_00008_.mp4"
     },
     {

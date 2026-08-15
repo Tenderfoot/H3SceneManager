@@ -15,13 +15,23 @@ async function api(path, opts = {}) {
 }
 
 // ---------- tabs ----------
+// A dynamically-opened scene editor tab (see "scene editor" section below)
+// gets discarded -- unsaved changes and all -- whenever any OTHER tab is
+// activated. Static tabs and the dynamic scene tab both route through here.
+function activateTab(tabId) {
+  if (openSceneEditor && tabId !== openSceneEditor.tabId) {
+    closeSceneEditor();  // silently discards any unsaved local edits
+  }
+  $$(".tab").forEach(b => b.classList.remove("active"));
+  $$(".tab-panel").forEach(p => p.classList.remove("active"));
+  const btn = document.querySelector(`.tab[data-tab="${tabId}"]`);
+  const panel = $(`#tab-${tabId}`);
+  if (btn) btn.classList.add("active");
+  if (panel) panel.classList.add("active");
+}
+
 $$(".tab").forEach(btn => {
-  btn.addEventListener("click", () => {
-    $$(".tab").forEach(b => b.classList.remove("active"));
-    $$(".tab-panel").forEach(p => p.classList.remove("active"));
-    btn.classList.add("active");
-    $(`#tab-${btn.dataset.tab}`).classList.add("active");
-  });
+  btn.addEventListener("click", () => activateTab(btn.dataset.tab));
 });
 
 function parsePropertiesField(form) {
@@ -71,43 +81,97 @@ function collectAttireOptions() {
 
 $("#add-attire-row").addEventListener("click", () => addAttireRow());
 
+// ---------- shared category-dropdown helper (characters, settings each have
+// their own independent category namespace, not shared between them) ----------
+function makeCategoryPicker(selectEl, newInputEl) {
+  function populate(categories, selectedValue = "") {
+    const noneSelected = selectedValue === "" ? "selected" : "";
+    const opts = categories.map(cat =>
+      `<option value="${cat}" ${cat === selectedValue ? "selected" : ""}>${cat}</option>`).join("");
+    selectEl.innerHTML = `<option value="" ${noneSelected}>— no category —</option>${opts}<option value="__new__">+ New category…</option>`;
+    newInputEl.style.display = "none";
+  }
+  selectEl.addEventListener("change", () => {
+    newInputEl.style.display = selectEl.value === "__new__" ? "block" : "none";
+  });
+  function resolveValue() {
+    return selectEl.value === "__new__" ? newInputEl.value.trim() : selectEl.value;
+  }
+  return { populate, resolveValue };
+}
+
+const characterCategoryPicker = makeCategoryPicker(
+  $("#character-category-select"), $("#character-category-new"));
+const settingCategoryPicker = makeCategoryPicker(
+  $("#setting-category-select"), $("#setting-category-new"));
+
 // ---------- characters ----------
 async function refreshCharacters() {
   const list = await api("/characters");
+  const categories = [...new Set(list.map(c => c.category).filter(Boolean))].sort();
+  characterCategoryPicker.populate(categories, "");
+
   const container = $("#character-list");
   container.innerHTML = "";
+
+  const grouped = {};
   for (const c of list) {
-    const card = document.createElement("div");
-    card.className = "entity-card";
-    const attireNote = c.attire_options.length
-      ? `${c.attire_options.length} attire option(s)`
-      : "no attire options";
-    card.innerHTML = `
-      <div>
-        <strong>${c.name}</strong>
-        <div class="meta">${c.face_image || "no face image"} · ${c.voice_audio || "no voice"} · ${attireNote}</div>
-      </div>
-      <div>
-        <button data-edit>Edit</button>
-        <button data-delete class="danger">Delete</button>
-      </div>`;
-    card.querySelector("[data-edit]").onclick = () => {
-      const f = $("#character-form");
-      f.id.value = c.id; f.name.value = c.name;
-      f.face_image.value = c.face_image;
-      f.voice_audio.value = c.voice_audio;
-      f.appearance_description.value = c.appearance_description;
-      f.properties.value = JSON.stringify(c.properties, null, 2);
-      clearAttireRows();
-      c.attire_options.forEach(a => addAttireRow(a));
-    };
-    card.querySelector("[data-delete]").onclick = async () => {
-      if (confirm(`Delete character "${c.name}"?`)) {
-        await api(`/characters/${c.id}`, { method: "DELETE" });
-        refreshCharacters(); refreshCastingCharacterSelect();
-      }
-    };
-    container.appendChild(card);
+    const key = c.category || "Uncategorized";
+    (grouped[key] = grouped[key] || []).push(c);
+  }
+  const sortedKeys = Object.keys(grouped).sort((a, b) => {
+    if (a === "Uncategorized") return 1;
+    if (b === "Uncategorized") return -1;
+    return a.localeCompare(b);
+  });
+
+  for (const key of sortedKeys) {
+    const heading = document.createElement("div");
+    heading.className = "category-heading";
+    heading.textContent = key;
+    container.appendChild(heading);
+
+    for (const c of grouped[key]) {
+      const card = document.createElement("div");
+      card.className = "entity-card";
+      const attireNote = c.attire_options.length
+        ? `${c.attire_options.length} attire option(s)`
+        : "no attire options";
+      card.innerHTML = `
+        <div>
+          <strong>${c.name}</strong>
+          <div class="meta">${c.face_image || "no face image"} · ${c.voice_audio || "no voice"} · ${attireNote}</div>
+        </div>
+        <div>
+          <button data-edit>Edit</button>
+          <button data-delete class="danger">Delete</button>
+        </div>`;
+      card.querySelector("[data-edit]").onclick = () => {
+        const f = $("#character-form");
+        f.id.value = c.id; f.name.value = c.name;
+        f.face_image.value = c.face_image;
+        f.voice_audio.value = c.voice_audio;
+        f.appearance_description.value = c.appearance_description;
+        f.properties.value = JSON.stringify(c.properties, null, 2);
+        if (c.category && categories.includes(c.category)) {
+          characterCategoryPicker.populate(categories, c.category);
+        } else if (c.category) {
+          characterCategoryPicker.populate(categories, "__new__");
+          f.category_new.value = c.category;
+        } else {
+          characterCategoryPicker.populate(categories, "");
+        }
+        clearAttireRows();
+        c.attire_options.forEach(a => addAttireRow(a));
+      };
+      card.querySelector("[data-delete]").onclick = async () => {
+        if (confirm(`Delete character "${c.name}"?`)) {
+          await api(`/characters/${c.id}`, { method: "DELETE" });
+          refreshCharacters(); refreshCastingCharacterSelect();
+        }
+      };
+      container.appendChild(card);
+    }
   }
 }
 
@@ -116,9 +180,11 @@ $("#character-form").addEventListener("submit", async e => {
   const f = e.target;
   let properties;
   try { properties = parsePropertiesField(f); } catch { return; }
+  const category = characterCategoryPicker.resolveValue();
   const payload = {
     name: f.name.value, face_image: f.face_image.value,
     voice_audio: f.voice_audio.value,
+    category,
     appearance_description: f.appearance_description.value,
     attire_options: collectAttireOptions(),
     properties,
@@ -132,35 +198,65 @@ $("#character-form").addEventListener("submit", async e => {
 // ---------- settings ----------
 async function refreshSettings() {
   const list = await api("/settings");
+  const categories = [...new Set(list.map(s => s.category).filter(Boolean))].sort();
+  settingCategoryPicker.populate(categories, "");
+
   const container = $("#setting-list");
   container.innerHTML = "";
+
+  const grouped = {};
   for (const s of list) {
-    const card = document.createElement("div");
-    card.className = "entity-card";
-    card.innerHTML = `
-      <div>
-        <strong>${s.name}</strong>
-        <div class="meta">${s.reference_image || "no reference image"}</div>
-      </div>
-      <div>
-        <button data-edit>Edit</button>
-        <button data-delete class="danger">Delete</button>
-      </div>`;
-    card.querySelector("[data-edit]").onclick = () => {
-      const f = $("#setting-form");
-      f.id.value = s.id; f.name.value = s.name;
-      f.reference_image.value = s.reference_image; f.ambient_audio.value = s.ambient_audio;
-      f.visual_description.value = s.visual_description;
-      f.soundscape_description.value = s.soundscape_description;
-      f.properties.value = JSON.stringify(s.properties, null, 2);
-    };
-    card.querySelector("[data-delete]").onclick = async () => {
-      if (confirm(`Delete setting "${s.name}"?`)) {
-        await api(`/settings/${s.id}`, { method: "DELETE" });
-        refreshSettings(); refreshSceneSettingSelect();
-      }
-    };
-    container.appendChild(card);
+    const key = s.category || "Uncategorized";
+    (grouped[key] = grouped[key] || []).push(s);
+  }
+  const sortedKeys = Object.keys(grouped).sort((a, b) => {
+    if (a === "Uncategorized") return 1;
+    if (b === "Uncategorized") return -1;
+    return a.localeCompare(b);
+  });
+
+  for (const key of sortedKeys) {
+    const heading = document.createElement("div");
+    heading.className = "category-heading";
+    heading.textContent = key;
+    container.appendChild(heading);
+
+    for (const s of grouped[key]) {
+      const card = document.createElement("div");
+      card.className = "entity-card";
+      card.innerHTML = `
+        <div>
+          <strong>${s.name}</strong>
+          <div class="meta">${s.reference_image || "no reference image"}</div>
+        </div>
+        <div>
+          <button data-edit>Edit</button>
+          <button data-delete class="danger">Delete</button>
+        </div>`;
+      card.querySelector("[data-edit]").onclick = () => {
+        const f = $("#setting-form");
+        f.id.value = s.id; f.name.value = s.name;
+        f.reference_image.value = s.reference_image;
+        f.visual_description.value = s.visual_description;
+        f.soundscape_description.value = s.soundscape_description;
+        f.properties.value = JSON.stringify(s.properties, null, 2);
+        if (s.category && categories.includes(s.category)) {
+          settingCategoryPicker.populate(categories, s.category);
+        } else if (s.category) {
+          settingCategoryPicker.populate(categories, "__new__");
+          f.category_new.value = s.category;
+        } else {
+          settingCategoryPicker.populate(categories, "");
+        }
+      };
+      card.querySelector("[data-delete]").onclick = async () => {
+        if (confirm(`Delete setting "${s.name}"?`)) {
+          await api(`/settings/${s.id}`, { method: "DELETE" });
+          refreshSettings(); refreshSceneSettingSelect();
+        }
+      };
+      container.appendChild(card);
+    }
   }
 }
 
@@ -171,7 +267,7 @@ $("#setting-form").addEventListener("submit", async e => {
   try { properties = parsePropertiesField(f); } catch { return; }
   const payload = {
     name: f.name.value, reference_image: f.reference_image.value,
-    ambient_audio: f.ambient_audio.value,
+    category: settingCategoryPicker.resolveValue(),
     visual_description: f.visual_description.value,
     soundscape_description: f.soundscape_description.value,
     properties,
@@ -275,15 +371,11 @@ async function refreshScenes() {
         <button data-open>Open</button>
         <button data-delete class="danger">Delete</button>
       </div>`;
-    card.querySelector("[data-open]").onclick = () => openSceneDetail(s.id);
+    card.querySelector("[data-open]").onclick = () => openSceneEditorTab(s.id);
     card.querySelector("[data-delete]").onclick = async () => {
       if (confirm(`Delete scene "${s.name}"?`)) {
         await api(`/scenes/${s.id}`, { method: "DELETE" });
-        if (s.id === currentSceneId) {
-          currentSceneId = null;
-          currentSceneCharacters = [];
-          $("#scene-detail").style.display = "none";
-        }
+        if (openSceneEditor && openSceneEditor.sceneId === s.id) closeSceneEditor();
         refreshScenes();
       }
     };
@@ -329,6 +421,7 @@ $("#scene-form").addEventListener("submit", async e => {
     non_diegetic_music: f.non_diegetic_music.value,
     summary_premise: f.summary_premise.value,
     style_preset: f.style_preset.value,
+    prompt_format: f.prompt_format.value,
   };
   if (f.style_preset.value === "custom") payload.style_text = f.style_text.value;
   if (f.id.value) await api(`/scenes/${f.id.value}`, { method: "PUT", body: JSON.stringify(payload) });
@@ -341,10 +434,15 @@ $("#scene-form").addEventListener("submit", async e => {
   refreshScenes();
 });
 
-// ---------- scene detail: sequences + beats ----------
-let currentSceneId = null;
-let currentSceneCharacters = [];  // cached {id, name, attire_options} list for the open scene
-let deliveryOptions = [];         // cached [{key, label}] from the server
+// ---------- scene editor: dynamic tab, staged local edits, explicit save ----------
+// Opening a scene creates a NEW tab (not a section within the Scenes tab).
+// All sequence/beat add/edit/delete/reorder actions mutate a local, in-memory
+// working copy only -- nothing hits the API until "Save Changes" is clicked.
+// Navigating to any other tab discards the whole working copy silently.
+let openSceneEditor = null;
+// shape: { sceneId, tabId, btn, panel, localScene, savedSnapshot,
+//          characters, settingLabel }
+let deliveryOptions = [];  // cached [{key, label}] from the server
 
 async function loadDeliveryOptions() {
   if (deliveryOptions.length) return deliveryOptions;
@@ -361,50 +459,29 @@ function deliveryOptionsHtml(selectedKey = "") {
          `<option value="custom" ${customSelected}>Custom…</option>`;
 }
 
-async function openSceneDetail(sceneId) {
-  currentSceneId = sceneId;
-  await loadDeliveryOptions();
-  const scene = await api(`/scenes/${sceneId}`);
-  const allChars = await api("/characters");
-  const allSettings = await api("/settings");
-  const castedIds = new Set(scene.character_castings.map(c => c.character_id));
-  currentSceneCharacters = allChars.filter(c => castedIds.has(c.id));
-  const setting = allSettings.find(s => s.id === scene.setting_id);
-
-  $("#scene-detail").style.display = "block";
-  $("#scene-detail-title").textContent = `Sequences — ${scene.name}`;
-
-  const attireById = {};
-  for (const c of allChars) for (const a of c.attire_options) attireById[a.id] = a;
-  const settingLabel = setting ? setting.name : "— none chosen —";
-  const charLabels = scene.character_castings.length
-    ? scene.character_castings.map(casting => {
-        const c = allChars.find(ch => ch.id === casting.character_id);
-        if (!c) return "?";
-        const attire = casting.attire_id ? attireById[casting.attire_id] : c.attire_options.find(a => a.is_default);
-        const attireLabel = attire ? ` (${attire.label || "attire"})` : "";
-        return `${c.name}${attireLabel}`;
-      }).join(", ")
-    : "— none —";
-  $("#scene-detail-info").innerHTML = `
-    <div><span class="info-label">Setting</span> ${settingLabel}</div>
-    <div><span class="info-label">Characters</span> ${charLabels}</div>
-    <div><span class="info-label">Premise</span> ${scene.summary_premise || "— none set —"}</div>
-    <div><span class="info-label">Visual style</span> ${scene.style_opening || "— none set —"}</div>
-  `;
-
-  renderSequences(scene);
+function deliveryPreviewText(beat) {
+  // Local unsaved beats never have `delivery` resolved (that only happens
+  // server-side on save) -- fall back to the preset's label, or the raw
+  // custom text, so the beat list still shows something meaningful.
+  if (beat.delivery) return beat.delivery;
+  if (beat.delivery_preset === "custom") return beat.delivery_text || "";
+  if (beat.delivery_preset) {
+    const opt = deliveryOptions.find(o => o.key === beat.delivery_preset);
+    return opt ? opt.label : "";
+  }
+  return "";
 }
 
 function beatSummary(beat, charById) {
-  const base = beat.kind === "action"
-    ? beat.text
-    : (() => {
-        const name = charById[beat.character_id]?.name || "?";
-        const deliveryNote = beat.delivery ? ` (${beat.delivery})` : "";
-        return `${name}${deliveryNote}: "${beat.line}"`;
-      })();
-  return base;
+  if (beat.kind === "action") return beat.text;
+  const name = charById[beat.character_id]?.name || "?";
+  const delivery = deliveryPreviewText(beat);
+  const deliveryNote = delivery ? ` (${delivery})` : "";
+  return `${name}${deliveryNote}: "${beat.line}"`;
+}
+
+function localId(prefix) {
+  return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
 }
 
 // ---------- timestamp widget: seconds + milliseconds, stored as "00:SS.mmm" ----------
@@ -437,6 +514,8 @@ function beatFormFieldsHtml(charOptions, beat = null, isFirstShot = false) {
       <span>.</span>
       <input type="number" name="beat_timestamp_ms" min="0" max="999" step="1" placeholder="ms" value="${ms}">
     </div>`;
+  const customDeliveryValue = beat?.delivery_preset === "custom"
+    ? (beat.delivery_text || beat.delivery || "") : "";
   return `
     <select name="beat_kind">
       <option value="action" ${!isDialogue ? "selected" : ""}>Descriptive text</option>
@@ -449,7 +528,7 @@ function beatFormFieldsHtml(charOptions, beat = null, isFirstShot = false) {
       style="display:${isDialogue ? "block" : "none"}">${beat?.line || ""}</textarea>
     <select name="beat_delivery" style="display:${isDialogue ? "block" : "none"}">${deliveryOptionsHtml(beat?.delivery_preset || "")}</select>
     <input type="text" name="beat_delivery_custom" placeholder="Describe the delivery (e.g. 'in a low, urgent whisper')"
-      value="${beat?.delivery_preset === "custom" ? (beat.delivery || "") : ""}"
+      value="${customDeliveryValue}"
       style="display:${isDialogue && beat?.delivery_preset === "custom" ? "block" : "none"}">
     ${timestampField}
   `;
@@ -493,17 +572,141 @@ function wireBeatFormBehavior(formEl) {
   };
 }
 
-function renderSequences(scene) {
-  const container = $("#sequence-list");
-  container.innerHTML = "";
-  const charById = Object.fromEntries(currentSceneCharacters.map(c => [c.id, c]));
-  const charOptions = currentSceneCharacters.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+// ---------- local (unsaved) mutations ----------
+function isSceneEditorDirty() {
+  if (!openSceneEditor) return false;
+  return JSON.stringify(openSceneEditor.localScene.sequences) !==
+         JSON.stringify(openSceneEditor.savedSnapshot.sequences);
+}
+
+function addLocalSequence(duration) {
+  openSceneEditor.localScene.sequences.push({
+    id: localId("seq"), index: openSceneEditor.localScene.sequences.length,
+    duration, beats: [], status: "pending", output_video_path: "",
+  });
+  renderSceneEditorPanel();
+}
+
+function deleteLocalSequence(seqId) {
+  const seqs = openSceneEditor.localScene.sequences
+    .filter(s => s.id !== seqId)
+    .sort((a, b) => a.index - b.index);
+  seqs.forEach((s, i) => { s.index = i; });
+  openSceneEditor.localScene.sequences = seqs;
+  renderSceneEditorPanel();
+}
+
+function addLocalBeat(seqId, payload) {
+  const seq = openSceneEditor.localScene.sequences.find(s => s.id === seqId);
+  seq.beats.push({
+    id: localId("beat"),
+    kind: payload.kind,
+    text: payload.text || "",
+    character_id: payload.character_id || "",
+    line: payload.line || "",
+    language: payload.language || "English",
+    delivery_preset: payload.delivery_preset || "",
+    delivery: "",  // resolved server-side on save
+    delivery_text: payload.delivery_text || "",
+    timestamp: payload.timestamp || "",
+  });
+  renderSceneEditorPanel();
+}
+
+function editLocalBeat(seqId, beatId, payload) {
+  const seq = openSceneEditor.localScene.sequences.find(s => s.id === seqId);
+  const beat = seq.beats.find(b => b.id === beatId);
+  beat.kind = payload.kind;
+  beat.text = payload.text || "";
+  beat.character_id = payload.character_id || "";
+  beat.line = payload.line || "";
+  beat.delivery_preset = payload.delivery_preset || "";
+  beat.delivery = "";  // re-resolved server-side on next save
+  beat.delivery_text = payload.delivery_text || "";
+  beat.timestamp = payload.timestamp || "";
+  renderSceneEditorPanel();
+}
+
+function deleteLocalBeat(seqId, beatId) {
+  const seq = openSceneEditor.localScene.sequences.find(s => s.id === seqId);
+  seq.beats = seq.beats.filter(b => b.id !== beatId);
+  renderSceneEditorPanel();
+}
+
+function reorderLocalBeats(seqId, beatIds) {
+  const seq = openSceneEditor.localScene.sequences.find(s => s.id === seqId);
+  const byId = Object.fromEntries(seq.beats.map(b => [b.id, b]));
+  seq.beats = beatIds.map(id => byId[id]);
+  renderSceneEditorPanel();
+}
+
+// ---------- opening / closing the tab ----------
+async function openSceneEditorTab(sceneId) {
+  closeSceneEditor();  // discard anything previously open first, same-scene or not
+
+  await loadDeliveryOptions();
+  const scene = await api(`/scenes/${sceneId}`);
+  const allChars = await api("/characters");
+  const allSettings = await api("/settings");
+  const castedIds = new Set(scene.character_castings.map(c => c.character_id));
+  const characters = allChars.filter(c => castedIds.has(c.id));
+  const setting = allSettings.find(s => s.id === scene.setting_id);
+
+  const attireById = {};
+  for (const c of allChars) for (const a of c.attire_options) attireById[a.id] = a;
+  const settingLabel = setting ? setting.name : "— none chosen —";
+  const charLabels = scene.character_castings.length
+    ? scene.character_castings.map(casting => {
+        const c = allChars.find(ch => ch.id === casting.character_id);
+        if (!c) return "?";
+        const attire = casting.attire_id ? attireById[casting.attire_id] : c.attire_options.find(a => a.is_default);
+        const attireLabel = attire ? ` (${attire.label || "attire"})` : "";
+        return `${c.name}${attireLabel}`;
+      }).join(", ")
+    : "— none —";
+
+  const tabId = `scene-${scene.id}`;
+  const btn = document.createElement("button");
+  btn.className = "tab";
+  btn.dataset.tab = tabId;
+  btn.textContent = scene.name;
+  btn.addEventListener("click", () => activateTab(tabId));
+  $("nav").appendChild(btn);
+
+  const panel = document.createElement("section");
+  panel.id = `tab-${tabId}`;
+  panel.className = "tab-panel";
+  $("main").appendChild(panel);
+
+  openSceneEditor = {
+    sceneId: scene.id, tabId, btn, panel,
+    localScene: JSON.parse(JSON.stringify(scene)),
+    savedSnapshot: JSON.parse(JSON.stringify(scene)),
+    characters, settingLabel, charLabels,
+  };
+
+  renderSceneEditorPanel();
+  activateTab(tabId);
+}
+
+function closeSceneEditor() {
+  if (!openSceneEditor) return;
+  openSceneEditor.btn.remove();
+  openSceneEditor.panel.remove();
+  openSceneEditor = null;
+}
+
+// ---------- rendering the panel from local state ----------
+function renderSceneEditorPanel() {
+  const ed = openSceneEditor;
+  if (!ed) return;
+  const scene = ed.localScene;
+  const dirty = isSceneEditorDirty();
+  const charById = Object.fromEntries(ed.characters.map(c => [c.id, c]));
+  const charOptions = ed.characters.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
   const sorted = [...scene.sequences].sort((a, b) => a.index - b.index);
 
-  for (const seq of sorted) {
-    const card = document.createElement("div");
-    card.className = "seq-card";
-
+  const sequencesHtml = sorted.map(seq => {
     const beatsHtml = seq.beats.map((b, i) => `
       <div class="beat-row" data-beat-id="${b.id}">
         <span class="beat-shot">Shot ${i + 1}${i > 0 && b.timestamp ? ` · ${b.timestamp}` : ""}</span>
@@ -515,65 +718,105 @@ function renderSequences(scene) {
         <button data-remove-beat class="danger" title="Delete">×</button>
       </div>`).join("") || `<div class="meta">No beats yet.</div>`;
 
-    card.innerHTML = `
-      <div><strong>#${seq.index}</strong> — ${seq.duration}s
-        <span class="status ${seq.status}">${seq.status}</span></div>
-      <div class="beats">${beatsHtml}</div>
+    return `
+      <div class="seq-card" data-seq-id="${seq.id}">
+        <div><strong>#${seq.index}</strong> — ${seq.duration}s
+          <span class="status ${seq.status}">${seq.status}</span></div>
+        <div class="beats">${beatsHtml}</div>
 
-      <form class="beat-form">
-        ${beatFormFieldsHtml(charOptions, null, seq.beats.length === 0)}
-        <button type="submit">Add Beat (Shot ${seq.beats.length + 1})</button>
-      </form>
+        <form class="beat-form">
+          ${beatFormFieldsHtml(charOptions, null, seq.beats.length === 0)}
+          <button type="submit">Add Beat (Shot ${seq.beats.length + 1})</button>
+        </form>
 
-      <div class="seq-actions">
-        <button data-generate>Generate workflow JSON</button>
-        <button data-resolve>Mark rendered / set output path</button>
-        <button data-delete-sequence class="danger">Delete sequence</button>
-      </div>
-      <div class="meta" data-result></div>
-    `;
+        <div class="seq-actions">
+          <button data-generate>Generate workflow JSON</button>
+          <button data-resolve>Mark rendered / set output path</button>
+          <button data-delete-sequence class="danger">Delete sequence</button>
+        </div>
+        <div class="meta" data-result></div>
+      </div>`;
+  }).join("");
+
+  ed.panel.innerHTML = `
+    <h2>${scene.name}</h2>
+    <div class="scene-info">
+      <div><span class="info-label">Setting</span> ${ed.settingLabel}</div>
+      <div><span class="info-label">Characters</span> ${ed.charLabels}</div>
+      <div><span class="info-label">Premise</span> ${scene.summary_premise || "— none set —"}</div>
+      <div><span class="info-label">Visual style</span> ${scene.style_opening || "— none set —"}</div>
+      <div><span class="info-label">Prompt format</span> ${scene.prompt_format === "full" ? "Full (six-section)" : "Lean (base-guide)"}</div>
+    </div>
+
+    <div class="save-bar ${dirty ? "dirty" : ""}">
+      <span class="save-bar-status">${dirty ? "Unsaved changes — switching tabs will discard them." : "All changes saved."}</span>
+      <button data-save-changes ${dirty ? "" : "disabled"}>Save Changes</button>
+      <button data-discard-changes ${dirty ? "" : "disabled"}>Discard Changes</button>
+    </div>
+
+    <form id="sequence-form" class="entity-form">
+      <input type="number" name="duration" min="5" max="10" step="0.5" value="8" placeholder="Duration (5-10s)">
+      <button type="submit">Add Sequence</button>
+    </form>
+    <div id="sequence-list">${sequencesHtml}</div>
+  `;
+
+  // save bar
+  ed.panel.querySelector("[data-save-changes]").onclick = async () => {
+    try {
+      const saved = await api(`/scenes/${ed.sceneId}/sequences_bulk`, {
+        method: "PUT", body: JSON.stringify({ sequences: ed.localScene.sequences }),
+      });
+      ed.localScene = JSON.parse(JSON.stringify(saved));
+      ed.savedSnapshot = JSON.parse(JSON.stringify(saved));
+      ed.btn.textContent = saved.name;
+      renderSceneEditorPanel();
+    } catch (err) { alert(err.message); }
+  };
+  ed.panel.querySelector("[data-discard-changes]").onclick = () => {
+    if (!confirm("Discard all unsaved changes to this scene's sequences?")) return;
+    ed.localScene = JSON.parse(JSON.stringify(ed.savedSnapshot));
+    renderSceneEditorPanel();
+  };
+
+  // add-sequence form
+  ed.panel.querySelector("#sequence-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const f = e.target;
+    addLocalSequence(parseFloat(f.duration.value));
+  });
+
+  // per-sequence cards
+  for (const seq of sorted) {
+    const card = ed.panel.querySelector(`.seq-card[data-seq-id="${seq.id}"]`);
 
     const addForm = card.querySelector(".beat-form");
     const addCtl = wireBeatFormBehavior(addForm);
-    addForm.addEventListener("submit", async e => {
+    addForm.addEventListener("submit", e => {
       e.preventDefault();
-      await api(`/scenes/${scene.id}/sequences/${seq.id}/beats`, {
-        method: "POST", body: JSON.stringify(addCtl.collectPayload()),
-      });
-      const fresh = await api(`/scenes/${scene.id}`);
-      renderSequences(fresh);
+      addLocalBeat(seq.id, addCtl.collectPayload());
     });
 
-    // per-beat row actions
     seq.beats.forEach((b, i) => {
       const row = card.querySelector(`.beat-row[data-beat-id="${b.id}"]`);
       if (!row) return;
 
-      row.querySelector("[data-remove-beat]").onclick = async () => {
-        await api(`/scenes/${scene.id}/sequences/${seq.id}/beats/${b.id}`, { method: "DELETE" });
-        const fresh = await api(`/scenes/${scene.id}`);
-        renderSequences(fresh);
-      };
+      row.querySelector("[data-remove-beat]").onclick = () => deleteLocalBeat(seq.id, b.id);
 
       const moveUpBtn = row.querySelector("[data-move-up]");
       const moveDownBtn = row.querySelector("[data-move-down]");
-      const moveBeat = async direction => {
+      const moveBeat = direction => {
         const ids = seq.beats.map(x => x.id);
         const idx = ids.indexOf(b.id);
         const swapWith = direction === "up" ? idx - 1 : idx + 1;
         if (swapWith < 0 || swapWith >= ids.length) return;
         [ids[idx], ids[swapWith]] = [ids[swapWith], ids[idx]];
-        await api(`/scenes/${scene.id}/sequences/${seq.id}/beats/reorder`, {
-          method: "POST", body: JSON.stringify({ beat_ids: ids }),
-        });
-        const fresh = await api(`/scenes/${scene.id}`);
-        renderSequences(fresh);
+        reorderLocalBeats(seq.id, ids);
       };
       if (moveUpBtn) moveUpBtn.onclick = () => moveBeat("up");
       if (moveDownBtn) moveDownBtn.onclick = () => moveBeat("down");
 
       row.querySelector("[data-edit-beat]").onclick = () => {
-        // Replace this row's summary with an inline edit form pre-filled from the beat.
         if (row.querySelector(".beat-edit-form")) return;  // already editing
         const editWrap = document.createElement("div");
         editWrap.className = "beat-edit-form beat-form";
@@ -588,12 +831,8 @@ function renderSequences(scene) {
         const ctl = wireBeatFormBehavior(editWrap);
         if (b.kind === "dialogue") ctl.charSelect.value = b.character_id;
 
-        editWrap.querySelector("[data-save-beat]").onclick = async () => {
-          await api(`/scenes/${scene.id}/sequences/${seq.id}/beats/${b.id}`, {
-            method: "PUT", body: JSON.stringify(ctl.collectPayload()),
-          });
-          const fresh = await api(`/scenes/${scene.id}`);
-          renderSequences(fresh);
+        editWrap.querySelector("[data-save-beat]").onclick = () => {
+          editLocalBeat(seq.id, b.id, ctl.collectPayload());
         };
         editWrap.querySelector("[data-cancel-beat]").onclick = () => {
           editWrap.remove();
@@ -603,48 +842,46 @@ function renderSequences(scene) {
     });
 
     card.querySelector("[data-generate]").onclick = async () => {
+      if (isSceneEditorDirty()) {
+        alert("You have unsaved changes. Save Changes before generating a workflow.");
+        return;
+      }
       try {
-        const result = await api(`/scenes/${scene.id}/sequences/${seq.id}/generate`, { method: "POST" });
+        const result = await api(`/scenes/${ed.sceneId}/sequences/${seq.id}/generate`, { method: "POST" });
         card.querySelector("[data-result]").textContent = `Written to: ${result.workflow_path}`;
-        const fresh = await api(`/scenes/${scene.id}`);
-        renderSequences(fresh);
+        const fresh = await api(`/scenes/${ed.sceneId}`);
+        ed.localScene = JSON.parse(JSON.stringify(fresh));
+        ed.savedSnapshot = JSON.parse(JSON.stringify(fresh));
+        renderSceneEditorPanel();
       } catch (err) { alert(err.message); }
     };
     card.querySelector("[data-resolve]").onclick = async () => {
+      if (isSceneEditorDirty()) {
+        alert("You have unsaved changes. Save Changes before marking a sequence as rendered.");
+        return;
+      }
       const path = prompt("Absolute path to the rendered output video for this sequence:", seq.output_video_path || "");
       if (path === null) return;
-      await api(`/scenes/${scene.id}/sequences/${seq.id}/resolve_output`, {
+      await api(`/scenes/${ed.sceneId}/sequences/${seq.id}/resolve_output`, {
         method: "POST", body: JSON.stringify({ output_video_path: path }),
       });
-      const fresh = await api(`/scenes/${scene.id}`);
-      renderSequences(fresh);
+      const fresh = await api(`/scenes/${ed.sceneId}`);
+      ed.localScene = JSON.parse(JSON.stringify(fresh));
+      ed.savedSnapshot = JSON.parse(JSON.stringify(fresh));
+      renderSceneEditorPanel();
     };
-    card.querySelector("[data-delete-sequence]").onclick = async () => {
+    card.querySelector("[data-delete-sequence]").onclick = () => {
       const laterCount = scene.sequences.filter(s => s.index > seq.index).length;
       const warning = laterCount > 0
         ? ` This scene has ${laterCount} sequence(s) after it that chain from earlier sequences by ` +
           `order -- deleting this one will renumber them, and any already generated/rendered may need ` +
           `to be regenerated to chain correctly.`
         : "";
-      if (!confirm(`Delete Sequence #${seq.index}? This cannot be undone.${warning}`)) return;
-      await api(`/scenes/${scene.id}/sequences/${seq.id}`, { method: "DELETE" });
-      const fresh = await api(`/scenes/${scene.id}`);
-      renderSequences(fresh);
+      if (!confirm(`Delete Sequence #${seq.index}? This will apply once you Save.${warning}`)) return;
+      deleteLocalSequence(seq.id);
     };
-    container.appendChild(card);
   }
 }
-
-$("#sequence-form").addEventListener("submit", async e => {
-  e.preventDefault();
-  if (!currentSceneId) return;
-  const f = e.target;
-  const payload = { duration: parseFloat(f.duration.value) };
-  await api(`/scenes/${currentSceneId}/sequences`, { method: "POST", body: JSON.stringify(payload) });
-  f.reset(); f.duration.value = 8;
-  const fresh = await api(`/scenes/${currentSceneId}`);
-  renderSequences(fresh);
-});
 
 // ---------- init ----------
 refreshCharacters();

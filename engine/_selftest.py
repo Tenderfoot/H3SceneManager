@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from engine.models import Character, Setting, Sequence, Scene, Beat, AttireOption
 from engine.template_engine import generate_sequence_workflow, TemplateEngineError
-from engine.prompt_compiler import compile_prompt
+from engine.prompt_compiler import compile_prompt, compile_lean_prompt
 
 TEMPLATE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                               "data", "templates", "Grant_Template_Workflow.json")
@@ -70,6 +70,8 @@ def run():
         style_preset="scifi_neon",
         style_opening="The target video has a futuristic sci-fi look with cool blue and neon "
                        "accent lighting against dark environments.",
+        prompt_format="full",  # this test scene specifically exercises the full format below;
+                                # lean format gets its own dedicated test further down
     )
 
     # attire actually worn this scene: Grant wears his off-duty option (NOT
@@ -356,6 +358,66 @@ def run():
         f"expected only the one speaking character to get a Voice node, got: {voice_node_titles}"
     print("[OK] a cast with voice_audio set on everyone doesn't hit the audio cap when only some of them speak "
           "this sequence -- non-speakers correctly get no Voice node at all")
+
+    # ---- Lean (base-guide-style) prompt format: dedicated coverage ----
+    lean_scene = Scene.create(
+        "Corridor Standoff (Lean)", setting_id=setting.id,
+        summary_premise="Grant confronts Zara in the corridor after discovering the breach.",
+        style_opening="The target video has a futuristic sci-fi look with cool blue and neon "
+                       "accent lighting against dark environments.",
+        non_diegetic_music="A tense, low string ostinato builds slowly underneath the scene.",
+        prompt_format="lean",
+    )
+    lean_wf, _ = generate_sequence_workflow(
+        template, setting=setting, characters=[grant, zara], sequence=seq1, scene=lean_scene,
+        attire_by_char_id=attire_by_char_id,
+        previous_output_path="/abs/path/output/video/scene_x/00_seq_0001_00001.mp4",
+    )
+    check_workflow_integrity(lean_wf)
+    lean_prompt = next(n for n in lean_wf["nodes"]
+                        if n.get("title") == "Input Text (Prompt)")["widgets_values"][0]
+    print("\n--- compiled LEAN prompt ---")
+    print(lean_prompt)
+    print("--- end compiled lean prompt ---\n")
+
+    # No six-section scaffolding at all
+    for absent in ["subject_definitions:", "summary:", "retention_analysis:", "<Subject"]:
+        assert absent not in lean_prompt, f"lean format should never contain {absent!r}"
+    # Correct three-field structure
+    for section in ["integrated_multimodal_description:", "overall_soundscape:", "non_diegetic_music:"]:
+        assert section in lean_prompt, f"missing lean section {section}"
+    # Base guide's I2VA alignment-instruction preamble for chaining
+    assert lean_prompt.startswith(
+        "For the target video, at 0.00 seconds into the target video, <Picture"
+    ), lean_prompt[:120]
+    assert "(from [Shot 1]) is fully referenced." in lean_prompt
+    # Character/setting names stay as names, not replaced by tags
+    assert "Grant" in lean_prompt and "Zara" in lean_prompt
+    # Picture/Audio citations still present (mechanically required by the Ref2VA node)
+    assert "shown in <Picture" in lean_prompt
+    assert "voiced by <Audio" in lean_prompt
+    # Preservation info folded inline via "preserving X, Y, Z", not a separate section
+    assert "preserving" in lean_prompt
+    # Dialogue uses "says:" (colon) per the base guide, NOT "says," (comma, the ref-guide form)
+    assert "(S1) says: <d>[English] You should have listened.</d>" in lean_prompt
+    assert "says," not in lean_prompt
+    # Neither premise nor style should be folded into Shot 1's sentence
+    # anymore -- both are standalone paragraphs, premise then style, sitting
+    # between the alignment preamble and the core fields.
+    shot1_lean = [l for l in lean_prompt.splitlines() if l.startswith("[Shot 1]")][0]
+    assert "futuristic sci-fi look" not in shot1_lean, \
+        f"style should no longer be folded into Shot 1's sentence: {shot1_lean}"
+    assert "confronts Zara" not in shot1_lean, \
+        f"premise should no longer be folded into Shot 1's sentence: {shot1_lean}"
+    fully_referenced_idx = lean_prompt.index("is fully referenced.")
+    premise_idx = lean_prompt.index("confronts Zara")
+    style_idx = lean_prompt.index("futuristic sci-fi look")
+    core_fields_idx = lean_prompt.index("integrated_multimodal_description:")
+    assert fully_referenced_idx < premise_idx < style_idx < core_fields_idx, \
+        "expected order: preamble, then premise, then style, then core fields"
+    print("[OK] lean format: no six-section scaffolding, correct 3-field structure, I2VA-style "
+          "chaining preamble, names preserved, Picture/Audio citations + inline 'preserving' text, "
+          "'says:' punctuation, premise then style as standalone blocks between preamble and core fields")
 
     # dump for manual inspection
     out_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "manifests")

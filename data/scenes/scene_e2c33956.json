@@ -1,0 +1,90 @@
+{
+  "id": "scene_e2c33956",
+  "name": "Guinan calls out Troi",
+  "setting_id": "set_29800951",
+  "character_castings": [
+    {
+      "character_id": "char_3f930786",
+      "attire_id": ""
+    },
+    {
+      "character_id": "char_1ca78736",
+      "attire_id": ""
+    },
+    {
+      "character_id": "char_c8f025ba",
+      "attire_id": ""
+    }
+  ],
+  "non_diegetic_music": "",
+  "summary_premise": "Deanna Troi and Data are playing star trek chess in Ten Forward.",
+  "style_preset": "cinematic_soft",
+  "style_opening": "The target video is in a cinematic, literary style with soft lighting and a slightly desaturated color palette.",
+  "prompt_format": "lean",
+  "sequences": [
+    {
+      "id": "seq_9ab45bc1",
+      "index": 0,
+      "duration": 8.0,
+      "beats": [
+        {
+          "id": "beat_e2fa15e1",
+          "kind": "action",
+          "text": "Deanna Troi and Data are playing a game of Star Trek Chess. Deanna troi moves a piece, and Data seems impressed.",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "timestamp": ""
+        },
+        {
+          "id": "beat_5e479765",
+          "kind": "dialogue",
+          "text": "",
+          "character_id": "char_3f930786",
+          "line": "Very good Councilor. I'm impressed you were able to best a computer.",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "timestamp": ""
+        },
+        {
+          "id": "beat_36330fc8",
+          "kind": "dialogue",
+          "text": "",
+          "character_id": "char_1ca78736",
+          "line": "chess is not just a game of ploys and gambits, but also a game of intuition.",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "timestamp": ""
+        },
+        {
+          "id": "beat_5bb5ff58",
+          "kind": "action",
+          "text": "Guinan walks into the scene. She seems to fiddle with something on Data's head.",
+          "character_id": "",
+          "line": "",
+          "language": "English",
+          "delivery_preset": "",
+          "delivery": "",
+          "timestamp": ""
+        },
+        {
+          "id": "beat_01334c58",
+          "kind": "dialogue",
+          "text": "",
+          "character_id": "char_c8f025ba",
+          "line": "He was on easy",
+          "language": "English",
+          "delivery_preset": "sarcastic",
+          "delivery": "in a dry, sarcastic tone",
+          "timestamp": ""
+        }
+      ],
+      "status": "generated",
+      "output_video_path": ""
+    }
+  ]
+}

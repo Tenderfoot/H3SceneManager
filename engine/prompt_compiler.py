@@ -489,3 +489,212 @@ def compile_prompt(*, setting, characters, sequence, scene,
         ("non_diegetic_music", non_diegetic_music),
     ]
     return "\n\n".join(f"{title}:\n{body}" for title, body in sections)
+
+
+def compile_lean_prompt(*, setting, characters, sequence, scene,
+                         setting_picture_slot=None,
+                         prev_frame_picture_slot=None,
+                         character_slots=None,
+                         attire_by_char_id=None):
+    """
+    Leaner alternative to compile_prompt(), modeled on MiniMax H3's BASE
+    prompt guide (T2VA/I2VA/FL2VA/L2VA) instead of the full-reference
+    rewrite guide.
+
+    Rationale: H3 has no local prompt-rewriter stage -- the elaborate
+    subject_definitions / [task-type] bracket / retention_analysis
+    scaffolding is normally PRODUCED by a hosted rewriter model (Context-IR),
+    not something the open-weight base checkpoint necessarily learned to
+    parse as literal raw input. This format drops that scaffolding in favor
+    of natural prose, while still citing <Picture N> and <Audio N> directly
+    -- those tags are NOT rewrite-guide-specific, they're how the Ref2VA
+    node itself binds prompt text to wired reference media (confirmed via
+    the node's own documentation), so they're kept regardless of format.
+
+    The base guide was written for single/dual-keyframe tasks (I2VA/FL2VA/
+    L2VA) and never describes multi-asset per-character referencing at all
+    -- there's no documented convention for "here's a face image, an attire
+    image, and a voice clip, all for the same character." The choices below
+    are our own adaptation, not a literal implementation of either guide:
+
+    - No <Subject N> abstraction. Characters and the setting are referred to
+      by their actual names throughout, matching the base guide's own style
+      (it never uses abstract subject labels).
+    - Each character/setting's <Picture N>/<Audio N> citation happens inline,
+      folded into their first-appearance sentence, using the base guide's
+      own "preserving X, Y, Z" idiom (lifted directly from its I2VA example:
+      "preserving her appearance, clothing, seat position...") as the
+      functional replacement for retention_analysis's preservation markers.
+    - Chaining from a previous sequence uses the base guide's OWN documented
+      I2VA alignment-instruction line, since our previous-frame chaining
+      really is a literal first-frame anchor, not an identity/style
+      reference -- a closer documented fit than the rewrite guide's
+      subject_definitions style.
+    - Neither scene.summary_premise nor scene.style_opening has a section to
+      live in here (this three-field structure has no `summary` field, and
+      the base guide's own convention folds style into Shot 1's sentence
+      rather than giving it its own paragraph). Both are placed as their
+      own standalone, unlabeled paragraphs -- premise first, then style --
+      between the alignment preamble (if any) and the core fields, per
+      explicit request, rather than folded into Shot 1's own sentence.
+    - Dialogue uses the base guide's own confirmed punctuation: "says:"
+      with a colon, not the rewrite guide's "says," with a comma. Real,
+      deliberate difference between the two source documents.
+    - retention_analysis, subject_definitions, and the [task-type] bracket
+      are dropped entirely -- deliberately, not left out by oversight.
+
+    Returns the complete prompt string (alignment-instruction preamble, if
+    any, followed by the three core fields), ready to drop wholesale into
+    the workflow's prompt widget.
+    """
+    character_slots = character_slots or {}
+    attire_by_char_id = attire_by_char_id or {}
+    characters_by_id = {c.id: c for c in characters}
+
+    # Speaker numbering, fresh per sequence (same rationale as the full format:
+    # each sequence is its own independent generation, no persistent speaker
+    # memory across sequences to preserve).
+    speaker_number_by_char_id = {}
+    next_speaker = 1
+    for beat in sequence.beats:
+        if beat.kind == "dialogue" and beat.character_id not in speaker_number_by_char_id:
+            speaker_number_by_char_id[beat.character_id] = next_speaker
+            next_speaker += 1
+
+    # Per-character first-appearance shot tracking (same logic as the full
+    # format): a character "appears" in a shot if they speak in it or their
+    # name is mentioned in an action beat's text.
+    character_shot_numbers = {c.id: [] for c in characters}
+    for i, beat in enumerate(sequence.beats):
+        shot_n = i + 1
+        if beat.kind == "dialogue":
+            if beat.character_id in character_shot_numbers:
+                character_shot_numbers[beat.character_id].append(shot_n)
+        elif beat.kind == "action":
+            for character in characters:
+                if character.name and _name_pattern(character.name).search(beat.text or ""):
+                    character_shot_numbers[character.id].append(shot_n)
+    first_appearance_shot_by_char_id = {
+        cid: shots[0] for cid, shots in character_shot_numbers.items() if shots
+    }
+
+    def _character_intro(character):
+        slots = character_slots.get(character.id, {})
+        picture_citations = []
+        for key in ("face", "attire"):
+            slot_name = slots.get(key)
+            if slot_name is not None:
+                picture_citations.append(f"<Picture {slot_index(slot_name) + 1}>")
+        citation_text = " and ".join(picture_citations) if picture_citations else None
+
+        voice_slot = slots.get("voice")
+        voice_clause = None
+        if voice_slot is not None:
+            voice_clause = f"voiced by <Audio {slot_index(voice_slot) + 1}>"
+
+        desc_parts = []
+        if character.appearance_description:
+            desc_parts.append(character.appearance_description)
+        chosen_attire = attire_by_char_id.get(character.id)
+        if chosen_attire is not None and getattr(chosen_attire, "description", ""):
+            desc_parts.append(chosen_attire.description)
+        desc = ", ".join(desc_parts)
+
+        ref_parts = []
+        if citation_text:
+            ref_parts.append(f"shown in {citation_text}")
+        if voice_clause:
+            ref_parts.append(voice_clause)
+        ref_clause = " and ".join(ref_parts)
+
+        if ref_clause and desc:
+            return f"{character.name}, {ref_clause}, preserving {desc}"
+        elif ref_clause:
+            return f"{character.name}, {ref_clause}"
+        return character.name
+
+    def _setting_intro():
+        desc = setting.visual_description or setting.name
+        if setting_picture_slot is not None:
+            pic_n = slot_index(setting_picture_slot) + 1
+            return f"the {setting.name} shown in <Picture {pic_n}>, preserving {desc}"
+        return f"the {setting.name}, {desc}"
+
+    shot_blocks = []
+    for i, beat in enumerate(sequence.beats):
+        shot_n = i + 1
+
+        if beat.kind == "action":
+            content = beat.text or ""
+        elif beat.kind == "dialogue":
+            character = characters_by_id.get(beat.character_id)
+            if character is None:
+                content = ""
+            else:
+                sx = speaker_number_by_char_id.get(character.id)
+                lang = beat.language or "English"
+                delivery = (beat.delivery or "").strip()
+                delivery_clause = f" {delivery}" if delivery else ""
+                content = f"{character.name} (S{sx}) says{delivery_clause}: <d>[{lang}] {beat.line}</d>"
+        else:
+            content = ""
+
+        lead_in_parts = []
+
+        if shot_n == 1:
+            # Setting's establishing sentence opens Shot 1. Both
+            # scene.summary_premise and scene.style_opening are placed
+            # separately, as their own standalone paragraphs between the
+            # alignment preamble and the core fields -- see assembly below.
+            lead_in_parts.append(f"A shot establishes {_setting_intro()}.")
+
+        for character in characters:
+            if first_appearance_shot_by_char_id.get(character.id) == shot_n:
+                lead_in_parts.append(f"{_character_intro(character)} appears.")
+
+        lead_in = " ".join(lead_in_parts)
+
+        if shot_n == 1:
+            header = "[Shot 1]"  # never carries a timestamp, per the guide
+        else:
+            ts = (beat.timestamp or "").strip()
+            header = f"[Shot {shot_n}] At {ts}," if ts else f"[Shot {shot_n}]"
+
+        block = " ".join(p for p in (header, lead_in, content) if p).strip()
+        shot_blocks.append(block)
+
+    integrated_multimodal_description = "\n".join(shot_blocks)
+
+    preamble = ""
+    if prev_frame_picture_slot is not None:
+        pic_n = slot_index(prev_frame_picture_slot) + 1
+        preamble = (
+            f"For the target video, at 0.00 seconds into the target video, "
+            f"<Picture {pic_n}> (from [Shot 1]) is fully referenced.\n\n"
+        )
+
+    # scene.summary_premise has no section to live in (this format has no
+    # `summary` field), so it's placed as its own standalone paragraph,
+    # positioned after the alignment preamble (if any) and before the core
+    # fields -- unlabeled, matching the preamble's own bare-paragraph style
+    # rather than inventing a header the base guide doesn't document.
+    premise = (scene.summary_premise or "").strip()
+    premise_block = f"{premise}\n\n" if premise else ""
+
+    # scene.style_opening likewise has no section here -- also its own
+    # standalone paragraph, positioned after the premise and still before
+    # the core fields (per explicit request), rather than folded into
+    # Shot 1's own sentence as the base guide's own examples do it.
+    style = (scene.style_opening or "").strip()
+    style_block = f"{style}\n\n" if style else ""
+
+    overall_soundscape = setting.soundscape_description.strip() if setting.soundscape_description else "N/A"
+    non_diegetic_music = scene.non_diegetic_music.strip() if scene.non_diegetic_music else "N/A"
+
+    sections = [
+        ("integrated_multimodal_description", integrated_multimodal_description),
+        ("overall_soundscape", overall_soundscape),
+        ("non_diegetic_music", non_diegetic_music),
+    ]
+    body = "\n\n".join(f"{title}:\n{content}" for title, content in sections)
+    return preamble + premise_block + style_block + body

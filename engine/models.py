@@ -52,6 +52,9 @@ class Character:
     name: str
     face_image: str = ""      # absolute path to a reference face image
     voice_audio: str = ""     # absolute path to a reference voice clip
+    category: str = ""        # free-form, user-defined grouping (e.g. "Protagonists",
+                               # "Season 2 Cast") -- not a fixed vocabulary, just whatever
+                               # categories the user has typed for other characters so far
     attire_options: list = field(default_factory=list)  # list of AttireOption
     appearance_description: str = ""  # visual details for subject_definitions:
                                        # hair, build, face -- NOT clothing (that
@@ -96,8 +99,8 @@ class Setting:
     id: str
     name: str
     reference_image: str = ""   # absolute path to a reference image of the location
-    ambient_audio: str = ""     # absolute path to ambient/soundscape audio (currently
-                                 # descriptive-only; not wired as a reference asset)
+    category: str = ""          # free-form, user-defined grouping, independent of
+                                 # Character's category list (own namespace, not shared)
     visual_description: str = ""     # visual details for subject_definitions
     soundscape_description: str = "" # prose for overall_soundscape
     properties: dict = field(default_factory=dict)  # free-form, anything else
@@ -195,6 +198,9 @@ class Scene:
     style_preset: str = ""         # preset key, or "custom", or "" (no style opening set)
     style_opening: str = ""        # resolved 1-2 sentence visual style, prepended before
                                     # [Shot 1] in detailed_description, per the guide
+    prompt_format: str = "lean"    # "full" (six-section rewrite-guide format) or "lean"
+                                    # (three-field base-guide-style format). See
+                                    # prompt_compiler.compile_prompt / compile_lean_prompt.
     sequences: list = field(default_factory=list)        # list of Sequence
 
     @staticmethod

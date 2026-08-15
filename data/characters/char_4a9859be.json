@@ -2,7 +2,8 @@
   "id": "char_4a9859be",
   "name": "Michael Scott",
   "face_image": "michael scott.png",
-  "voice_audio": "",
+  "voice_audio": "michaelaudio.wav",
+  "category": "The Office",
   "attire_options": [
     {
       "id": "attire_e6e100a0",
