@@ -1,4 +1,4 @@
-# Scene Forge
+# H3SceneManager
 
 ![Scene Forge screenshot](screenshot.png)
 
