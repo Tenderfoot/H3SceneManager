@@ -808,6 +808,10 @@ async function openSceneEditorTab(sceneId) {
                             // convenience the API never acts on. Default true so
                             // regenerating a sequence unchanged doesn't silently hit
                             // ComfyUI's node cache and skip re-executing.
+    megapixels: 0.2,        // same live/not-saved pattern -- target resolution for the
+                            // Resolution Selector node. 0.2 is the empirically-best
+                            // default for prompt adherence; 0.3/0.4 trade that off for
+                            // more detail.
   };
 
   await refreshRunStatus();
@@ -1008,6 +1012,10 @@ function renderSceneEditorPanel() {
         <input type="checkbox" id="scene-editor-randomize-seed" ${ed.randomizeSeed ? "checked" : ""}>
         Randomize seed
       </label>
+      <div class="megapixels-row">
+        <span class="save-bar-status">Resolution: <strong id="scene-editor-megapixels-label">${ed.megapixels.toFixed(1)} MP</strong></span>
+        <input type="range" id="scene-editor-megapixels" min="0.2" max="0.4" step="0.1" value="${ed.megapixels}">
+      </div>
     </div>
 
     <div class="save-bar ${dirty ? "dirty" : ""}">
@@ -1061,6 +1069,11 @@ function renderSceneEditorPanel() {
   ed.panel.querySelector("#scene-editor-randomize-seed").addEventListener("change", e => {
     ed.randomizeSeed = e.target.checked;  // live only, no re-render needed
   });
+  ed.panel.querySelector("#scene-editor-megapixels").addEventListener("input", e => {
+    ed.megapixels = parseFloat(e.target.value);
+    // update the label directly rather than a full re-render, for a smooth drag
+    ed.panel.querySelector("#scene-editor-megapixels-label").textContent = `${ed.megapixels.toFixed(1)} MP`;
+  });
 
   // save bar
   ed.panel.querySelector("[data-save-changes]").onclick = async () => {
@@ -1086,7 +1099,7 @@ function renderSceneEditorPanel() {
     runBtn.onclick = async () => {
       try {
         await api(`/scenes/${ed.sceneId}/run`, {
-          method: "POST", body: JSON.stringify({ prompt_format: ed.promptFormat, randomize_seed: ed.randomizeSeed }),
+          method: "POST", body: JSON.stringify({ prompt_format: ed.promptFormat, randomize_seed: ed.randomizeSeed, megapixels: ed.megapixels }),
         });
         await refreshRunStatus();
         renderSceneEditorPanel();
@@ -1189,7 +1202,7 @@ function renderSceneEditorPanel() {
       }
       try {
         const result = await api(`/scenes/${ed.sceneId}/sequences/${seq.id}/generate`, {
-          method: "POST", body: JSON.stringify({ prompt_format: ed.promptFormat, randomize_seed: ed.randomizeSeed }),
+          method: "POST", body: JSON.stringify({ prompt_format: ed.promptFormat, randomize_seed: ed.randomizeSeed, megapixels: ed.megapixels }),
         });
         card.querySelector("[data-result]").textContent = `Written to: ${result.workflow_path}`;
         const fresh = await api(`/scenes/${ed.sceneId}`);

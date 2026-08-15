@@ -1,7 +1,7 @@
 {
   "comfyui_url": "http://127.0.0.1:8188",
-  "comfyui_output_dir": "C:\\Users\\grant\\OneDrive\\Desktop\\comfyui\\ComfyUI\\output",
-  "comfyui_input_dir": "C:\\Users\\grant\\OneDrive\\Desktop\\comfyui\\ComfyUI\\input",
+  "comfyui_output_dir": "C:\\comfyui\\ComfyUI\\output",
+  "comfyui_input_dir": "C:\\comfyui\\ComfyUI\\input",
   "poll_interval": 3.0,
   "timeout_seconds": 1800.0
 }

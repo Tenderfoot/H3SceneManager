@@ -748,6 +748,24 @@ def _resolve_randomize_seed(data):
     return bool(data.get("randomize_seed", True))
 
 
+VALID_MEGAPIXELS = (0.2, 0.3, 0.4)
+
+
+def _resolve_megapixels(data):
+    """Reads megapixels straight off the request body -- same per-call,
+    not-stored-anywhere pattern as prompt_format/randomize_seed (see the
+    scene editor's resolution slider). Defaults to 0.2, which is the
+    resolution empirically found to work best for prompt adherence."""
+    value = data.get("megapixels", 0.2)
+    try:
+        value = round(float(value), 1)
+    except (TypeError, ValueError):
+        return None, f"megapixels must be a number, got {value!r}"
+    if value not in VALID_MEGAPIXELS:
+        return None, f"megapixels must be one of {VALID_MEGAPIXELS}, got {value!r}"
+    return value, None
+
+
 # ---------- generation ----------
 @app.route("/api/scenes/<scid>/sequences/<seqid>/generate", methods=["POST"])
 def generate_sequence(scid, seqid):
@@ -760,6 +778,9 @@ def generate_sequence(scid, seqid):
     if err:
         return jsonify({"error": err}), 400
     randomize_seed = _resolve_randomize_seed(data)
+    megapixels, err = _resolve_megapixels(data)
+    if err:
+        return jsonify({"error": err}), 400
 
     try:
         location, scene_characters = _gather_scene_generation_context(scene)
@@ -794,6 +815,7 @@ def generate_sequence(scid, seqid):
             previous_output_path=previous_output_path,
             prompt_format=prompt_format,
             randomize_seed=randomize_seed,
+            megapixels=megapixels,
         )
     except TemplateEngineError as e:
         return jsonify({"error": str(e)}), 400
@@ -871,7 +893,7 @@ def _pick_run_output_folder(scene, ordered_sequences, comfyui_output_dir):
     return candidate
 
 
-def _run_scene_job(scid, prompt_format, randomize_seed):
+def _run_scene_job(scid, prompt_format, randomize_seed, megapixels):
     def _touch_job(mutate):
         with SCENE_RUNS_LOCK:
             job = SCENE_RUNS.get(scid)
@@ -924,6 +946,7 @@ def _run_scene_job(scid, prompt_format, randomize_seed):
                 previous_output_path=previous_output_path,
                 prompt_format=prompt_format,
                 randomize_seed=randomize_seed,
+                megapixels=megapixels,
                 output_prefix=f"{run_output_folder}/{run_output_folder}_{sequence.index + 1}",
             )
             out_path = _sequence_workflow_path(scene, sequence)
@@ -986,6 +1009,9 @@ def start_scene_run(scid):
     if err:
         return jsonify({"error": err}), 400
     randomize_seed = _resolve_randomize_seed(data)
+    megapixels, err = _resolve_megapixels(data)
+    if err:
+        return jsonify({"error": err}), 400
 
     with SCENE_RUNS_LOCK:
         existing = SCENE_RUNS.get(scid)
@@ -993,7 +1019,7 @@ def start_scene_run(scid):
             return jsonify({"error": "a render run is already in progress for this scene"}), 409
         SCENE_RUNS[scid] = _new_run_job(scene)
 
-    threading.Thread(target=_run_scene_job, args=(scid, prompt_format, randomize_seed), daemon=True).start()
+    threading.Thread(target=_run_scene_job, args=(scid, prompt_format, randomize_seed, megapixels), daemon=True).start()
     return jsonify({"started": True})
 
 

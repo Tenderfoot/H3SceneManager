@@ -66,6 +66,7 @@ import re
 from .prompt_compiler import compile_prompt, compile_lean_prompt
 
 SINK_NODE_TYPE = "MiniMaxH3ReferenceToVideo"
+RESOLUTION_SELECTOR_NODE_TYPE = "ResolutionSelector"
 RANDOM_NOISE_NODE_TYPE = "RandomNoise"
 MAX_SAFE_SEED = 2**53 - 1  # stays a precise integer if this value ever round-trips
                             # through JSON into JS (e.g. the /workflow/convert
@@ -239,7 +240,7 @@ def _slugify(name):
 
 def generate_sequence_workflow(template, *, location, characters, sequence, scene,
                                 previous_output_path=None, output_prefix=None,
-                                prompt_format="lean", randomize_seed=True):
+                                prompt_format="lean", randomize_seed=True, megapixels=0.2):
     """
     template: parsed dict of the template workflow JSON (will be deep-copied)
     location: Location instance
@@ -269,6 +270,12 @@ def generate_sequence_workflow(template, *, location, characters, sequence, scen
         skip re-executing entirely (near-instant "completion" with no actual
         new render). Set False only if you deliberately want a reproducible,
         fixed seed across regenerates.
+    megapixels: target resolution for the Resolution Selector node, in
+        megapixels (e.g. 0.2 -> roughly 590x336 at the template's 16:9
+        aspect ratio). Empirically, lower resolution measurably improves
+        MiniMax H3's prompt adherence -- 0.2 is the current default/
+        recommendation, chosen per generate/run like prompt_format and
+        randomize_seed rather than stored anywhere.
 
     Returns: a new workflow dict, ready to write to disk / submit to ComfyUI.
     """
@@ -445,6 +452,11 @@ def generate_sequence_workflow(template, *, location, characters, sequence, scen
     if randomize_seed:
         noise_node = _find_node_by_type(wf, RANDOM_NOISE_NODE_TYPE)
         noise_node["widgets_values"][0] = random.randint(0, MAX_SAFE_SEED)
+
+    # --- Resolution: the Resolution Selector's megapixels widget (index 1;
+    # index 0 is the aspect-ratio preset, left untouched) ---
+    resolution_node = _find_node_by_type(wf, RESOLUTION_SELECTOR_NODE_TYPE)
+    resolution_node["widgets_values"][1] = megapixels
 
     # --- Output filename prefix, for chaining ---
     # SaveVideo's prefix supports "/" as a folder separator -- put each

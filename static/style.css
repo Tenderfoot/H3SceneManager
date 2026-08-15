@@ -146,6 +146,9 @@ main { padding: 24px; max-width: 900px; margin: 0 auto; }
 .prompt-format-row { display: flex; align-items: center; gap: 12px; }
 .randomize-seed-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px;
   color: #b8b8bc; white-space: nowrap; cursor: pointer; }
+.megapixels-row { display: flex; align-items: center; gap: 12px; }
+.megapixels-row input[type="range"] { flex: 1; max-width: 200px; accent-color: #3f789e; }
+.megapixels-row strong { color: #e8e8ea; font-weight: 600; }
 .beat-form { display: flex; flex-direction: column; gap: 6px; margin: 8px 0;
   padding: 10px; background: #16181d; border-radius: 6px; }
 .beat-form select, .beat-form textarea { background: #14161a; border: 1px solid #3a3d44;
