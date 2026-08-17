@@ -22,7 +22,11 @@
     <button type="button" id="add-character-btn">+ Add Character</button>
     <form id="character-form" class="entity-form" style="display:none">
       <input type="hidden" name="id">
-      <input type="text" name="name" placeholder="Name" required>
+
+      <div class="field-group">
+        <label class="field-label" for="character-name">Name</label>
+        <input type="text" name="name" id="character-name" placeholder="e.g. Riker" required>
+      </div>
 
       <div class="field-group">
         <label class="field-label" for="character-category-select">Category</label>
@@ -30,11 +34,26 @@
         <input type="text" name="category_new" id="character-category-new" placeholder="New category name" style="display:none">
       </div>
 
-      <input type="text" name="face_image" placeholder="Filename in ComfyUI's input/ dir (or an absolute path)">
-      <input type="text" name="voice_audio" placeholder="Filename in ComfyUI's input/ dir (or an absolute path)">
-      <textarea name="appearance_description" placeholder="Visual appearance for the prompt (hair, build, face, clothing -- whatever you want the model to preserve)"></textarea>
+      <div class="field-group">
+        <label class="field-label" for="character-face-image">Face reference image</label>
+        <input type="text" name="face_image" id="character-face-image" placeholder="Filename in ComfyUI's input/ dir (or an absolute path)">
+      </div>
 
-      <textarea name="properties" placeholder='Other custom properties as JSON, e.g. {"personality": "wry, guarded"}'></textarea>
+      <div class="field-group">
+        <label class="field-label" for="character-voice-audio">Voice reference audio</label>
+        <input type="text" name="voice_audio" id="character-voice-audio" placeholder="Filename in ComfyUI's input/ dir (or an absolute path)">
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="character-appearance-description">Appearance description</label>
+        <textarea name="appearance_description" id="character-appearance-description" placeholder="Visual appearance for the prompt (hair, build, face, clothing -- whatever you want the model to preserve)"></textarea>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="character-properties">Other properties (JSON)</label>
+        <textarea name="properties" id="character-properties" placeholder='e.g. {"personality": "wry, guarded"}'></textarea>
+      </div>
+
       <div class="scene-form-actions">
         <button type="submit">Save Character</button>
         <button type="button" id="cancel-character-btn">Cancel</button>
@@ -79,6 +98,7 @@
       <div class="casting-builder">
         <div class="casting-builder-label">Characters in this scene</div>
         <div class="casting-add-row">
+          <select id="casting-category-select"></select>
           <select id="casting-character-select"></select>
           <label class="casting-voice-toggle">
             <input type="checkbox" id="casting-include-voice" checked>

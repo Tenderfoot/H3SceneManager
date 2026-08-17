@@ -3,9 +3,10 @@ import os
 import re
 import threading
 import time
+from datetime import datetime, timezone
 from flask import Flask, request, jsonify, send_from_directory, send_file
 
-from engine.models import Character, Location, Sequence, Scene, Beat, CharacterCasting, new_id
+from engine.models import Character, Location, Sequence, Scene, Beat, CharacterCasting, RenderRecord, new_id
 from engine.storage import JsonStore
 from engine.template_engine import generate_sequence_workflow, TemplateEngineError
 from engine.prompt_compiler import DELIVERY_PRESETS, STYLE_PRESETS
@@ -694,6 +695,10 @@ def bulk_save_sequences(scid):
                 is_new_shot=is_new_shot,
                 timestamp=_normalize_shot_fields(is_new_shot, raw_beat.get("timestamp", "")),
             ))
+        render_history = [
+            RenderRecord.from_dict(r) if not isinstance(r, RenderRecord) else r
+            for r in raw_seq.get("render_history", [])
+        ]
         new_sequences.append(Sequence(
             id=raw_seq.get("id") or new_id("seq"),
             index=i,
@@ -701,11 +706,26 @@ def bulk_save_sequences(scid):
             beats=beats,
             status=raw_seq.get("status", "pending"),
             output_video_path=raw_seq.get("output_video_path", ""),
+            render_history=render_history,
         ))
 
     scene.sequences = new_sequences
     scenes.save(scene)
     return jsonify(scene.to_dict())
+
+
+def _record_render(sequence, output_path, prompt_format="", megapixels=0.0):
+    """Appends a RenderRecord and updates output_video_path/status -- the
+    one place a sequence's render history actually gets written to, used
+    both by the automated run job and the manual resolve_output endpoint."""
+    sequence.render_history.append(RenderRecord(
+        output_video_path=output_path,
+        rendered_at=datetime.now(timezone.utc).isoformat(),
+        prompt_format=prompt_format,
+        megapixels=megapixels,
+    ))
+    sequence.output_video_path = output_path
+    sequence.status = "rendered"
 
 
 @app.route("/api/scenes/<scid>/sequences/<seqid>/resolve_output", methods=["POST"])
@@ -722,8 +742,7 @@ def resolve_output(scid, seqid):
     output_path = data.get("output_video_path", "")
     for seq in scene.sequences:
         if seq.id == seqid:
-            seq.output_video_path = output_path
-            seq.status = "rendered"
+            _record_render(seq, output_path)
             scenes.save(scene)
             return jsonify(seq.to_dict())
     return jsonify({"error": "sequence not found"}), 404
@@ -893,7 +912,7 @@ def _pick_run_output_folder(scene, ordered_sequences, comfyui_output_dir):
     return candidate
 
 
-def _run_scene_job(scid, prompt_format, randomize_seed, megapixels):
+def _run_scene_job(scid, prompt_format, randomize_seed, megapixels, only_sequence_id=None):
     def _touch_job(mutate):
         with SCENE_RUNS_LOCK:
             job = SCENE_RUNS.get(scid)
@@ -927,9 +946,34 @@ def _run_scene_job(scid, prompt_format, randomize_seed, megapixels):
         run_output_folder = _pick_run_output_folder(scene, ordered, cfg["comfyui_output_dir"])
         _touch_job(lambda job: job.update(output_folder=run_output_folder))
 
+        if only_sequence_id is not None:
+            # Rendering a single sequence on demand -- always (re)render it
+            # regardless of its current status (unlike a full scene run,
+            # which skips anything already rendered). Still needs the
+            # immediately preceding sequence to be rendered already, for
+            # chaining, exactly like the manual /generate endpoint requires.
+            target = next((s for s in ordered if s.id == only_sequence_id), None)
+            if target is None:
+                raise SceneGenerationError("sequence not found")
+            if target.index > 0:
+                prev_seq = next((s for s in ordered if s.index == target.index - 1), None)
+                if prev_seq is None or not (prev_seq.status == "rendered" and prev_seq.output_video_path):
+                    raise SceneGenerationError(
+                        f"sequence #{target.index} needs sequence #{target.index - 1} "
+                        f"rendered first, for chaining"
+                    )
+
         previous_output_path = None
         for sequence in ordered:
-            if sequence.status == "rendered" and sequence.output_video_path:
+            if only_sequence_id is not None and sequence.id != only_sequence_id:
+                # Not the sequence we're rendering -- skip processing it, but
+                # still track its output for chaining purposes in case the
+                # target sequence comes right after it.
+                if sequence.status == "rendered" and sequence.output_video_path:
+                    previous_output_path = sequence.output_video_path
+                continue
+
+            if sequence.status == "rendered" and sequence.output_video_path and only_sequence_id is None:
                 previous_output_path = sequence.output_video_path
                 continue
 
@@ -968,10 +1012,12 @@ def _run_scene_job(scid, prompt_format, randomize_seed, megapixels):
             )
             output_path = client.find_output_file(history_entry)
 
-            sequence.status = "rendered"
-            sequence.output_video_path = output_path
+            _record_render(sequence, output_path, prompt_format=prompt_format, megapixels=megapixels)
             scenes.save(scene)
             _touch_seq(sequence.id, state="rendered", output_video_path=output_path, progress=None)
+
+            if only_sequence_id is not None:
+                break  # that was the one sequence we came here to render
 
             previous_output_path = output_path
 
@@ -1020,6 +1066,42 @@ def start_scene_run(scid):
         SCENE_RUNS[scid] = _new_run_job(scene)
 
     threading.Thread(target=_run_scene_job, args=(scid, prompt_format, randomize_seed, megapixels), daemon=True).start()
+    return jsonify({"started": True})
+
+
+@app.route("/api/scenes/<scid>/sequences/<seqid>/render", methods=["POST"])
+def start_sequence_render(scid, seqid):
+    """Submits just ONE sequence to ComfyUI and renders it, reusing the same
+    background-job machinery as a full scene run (SCENE_RUNS, live progress,
+    cancel support) -- just scoped to a single sequence via only_sequence_id.
+    Unlike a full run, this always (re)renders the target sequence
+    regardless of its current status, matching the on-demand semantics of
+    the manual "Generate workflow JSON" button."""
+    scene = scenes.load(scid)
+    if not scene:
+        return jsonify({"error": "scene not found"}), 404
+    sequence = next((s for s in scene.sequences if s.id == seqid), None)
+    if sequence is None:
+        return jsonify({"error": "sequence not found"}), 404
+
+    data = request.json or {}
+    prompt_format, err = _resolve_prompt_format(data)
+    if err:
+        return jsonify({"error": err}), 400
+    randomize_seed = _resolve_randomize_seed(data)
+    megapixels, err = _resolve_megapixels(data)
+    if err:
+        return jsonify({"error": err}), 400
+
+    with SCENE_RUNS_LOCK:
+        existing = SCENE_RUNS.get(scid)
+        if existing and existing["state"] == "running":
+            return jsonify({"error": "a render run is already in progress for this scene"}), 409
+        SCENE_RUNS[scid] = _new_run_job(scene)
+
+    threading.Thread(
+        target=_run_scene_job, args=(scid, prompt_format, randomize_seed, megapixels, seqid), daemon=True,
+    ).start()
     return jsonify({"started": True})
 
 

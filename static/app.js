@@ -345,60 +345,169 @@ async function refreshSceneLocationSelect() {
 let stagedCastings = [];       // [{character_id, include_voice}] being built for the scene form
 let allCharactersCache = [];   // refreshed whenever the casting picker updates
 
-async function refreshCastingCharacterSelect() {
-  allCharactersCache = await api("/characters");
-  const select = $("#casting-character-select");
-  const available = allCharactersCache.filter(c => !stagedCastings.some(sc => sc.character_id === c.id));
-  select.innerHTML = available.length
-    ? available.map(c => `<option value="${c.id}">${c.name}</option>`).join("")
-    : `<option value="">— all characters added —</option>`;
-  renderStagedCastings();
+// A reusable "category -> character" cast picker. Driven entirely by DOM
+// element ids and a few accessor callbacks so both the "new scene" form
+// (static DOM, wired once at page load) and the scene editor's own cast
+// section (dynamically re-rendered -- needs rewiring after every render)
+// can share one implementation instead of two parallel copies.
+//
+// beforeRemove(characterId) can return false (or a Promise resolving
+// false) to block a removal -- used by the scene editor to confirm before
+// removing a character whose dialogue beats depend on them.
+function createCastingBuilder({
+  categorySelectId, characterSelectId, voiceCheckboxId, addBtnId, resetBtnId, stagedListId,
+  getCastings, setCastings, getAllCharacters, onChange, beforeRemove = () => true,
+}) {
+  function groupedAvailable() {
+    const castings = getCastings();
+    const available = getAllCharacters().filter(c => !castings.some(sc => sc.character_id === c.id));
+    const grouped = {};
+    for (const c of available) {
+      const key = c.category || "Uncategorized";
+      (grouped[key] = grouped[key] || []).push(c);
+    }
+    return grouped;
+  }
+  function sortedKeys(grouped) {
+    return Object.keys(grouped).sort((a, b) => {
+      if (a === "Uncategorized") return 1;
+      if (b === "Uncategorized") return -1;
+      return a.localeCompare(b);
+    });
+  }
+
+  function syncCategorySelect() {
+    const grouped = groupedAvailable();
+    const keys = sortedKeys(grouped);
+    const categorySelect = $(`#${categorySelectId}`);
+    const previousCategory = categorySelect.value;
+    if (!keys.length) {
+      categorySelect.innerHTML = `<option value="">— all characters added —</option>`;
+      categorySelect.disabled = true;
+      syncCharacterOptions();
+      return;
+    }
+    categorySelect.disabled = false;
+    categorySelect.innerHTML = keys.map(k => `<option value="${k}">${k}</option>`).join("");
+    if (keys.includes(previousCategory)) categorySelect.value = previousCategory;
+    syncCharacterOptions();
+  }
+
+  function syncCharacterOptions() {
+    const grouped = groupedAvailable();
+    const categorySelect = $(`#${categorySelectId}`);
+    const charSelect = $(`#${characterSelectId}`);
+    const chars = grouped[categorySelect.value] || [];
+    if (!chars.length) {
+      charSelect.innerHTML = `<option value="">— none —</option>`;
+      charSelect.disabled = true;
+      syncVoiceToggle();
+      return;
+    }
+    charSelect.disabled = false;
+    charSelect.innerHTML = chars.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+    syncVoiceToggle();
+  }
+
+  // The "Include voice reference" checkbox only makes sense for a character
+  // that actually HAS a voice reference file -- disable and force it off
+  // for anyone who doesn't, otherwise leave it checked (the default).
+  function syncVoiceToggle() {
+    const charId = $(`#${characterSelectId}`).value;
+    const character = getAllCharacters().find(c => c.id === charId);
+    const voiceCheckbox = $(`#${voiceCheckboxId}`);
+    const hasVoice = !!(character && character.voice_audio);
+    voiceCheckbox.disabled = !hasVoice;
+    voiceCheckbox.checked = hasVoice;
+  }
+
+  function renderStagedList() {
+    const container = $(`#${stagedListId}`);
+    const castings = getCastings();
+    if (!castings.length) {
+      container.innerHTML = `<div class="meta">No characters added yet.</div>`;
+      return;
+    }
+    const allChars = getAllCharacters();
+    container.innerHTML = castings.map((sc, i) => {
+      const character = allChars.find(c => c.id === sc.character_id);
+      const name = character ? character.name : "?";
+      const hasVoice = character && character.voice_audio;
+      return `
+        <div class="staged-casting-row" data-index="${i}">
+          <span>${name}</span>
+          <label class="casting-voice-toggle">
+            <input type="checkbox" data-toggle-voice="${i}" ${sc.include_voice ? "checked" : ""} ${hasVoice ? "" : "disabled"}>
+            Include voice reference
+          </label>
+          <button type="button" data-remove-casting="${i}">Remove</button>
+        </div>`;
+    }).join("");
+    $$("[data-toggle-voice]", container).forEach(cb => {
+      cb.onchange = () => {
+        getCastings()[parseInt(cb.dataset.toggleVoice, 10)].include_voice = cb.checked;
+        onChange();
+      };
+    });
+    $$("[data-remove-casting]", container).forEach(btn => {
+      btn.onclick = async () => {
+        const idx = parseInt(btn.dataset.removeCasting, 10);
+        const casting = getCastings()[idx];
+        const ok = await beforeRemove(casting.character_id);
+        if (!ok) return;
+        getCastings().splice(idx, 1);
+        refresh();
+        onChange();
+      };
+    });
+  }
+
+  function refresh() {
+    syncCategorySelect();
+    renderStagedList();
+  }
+
+  $(`#${categorySelectId}`).addEventListener("change", syncCharacterOptions);
+  $(`#${characterSelectId}`).addEventListener("change", syncVoiceToggle);
+  $(`#${addBtnId}`).addEventListener("click", () => {
+    const charId = $(`#${characterSelectId}`).value;
+    if (!charId) return;
+    const includeVoice = $(`#${voiceCheckboxId}`).checked;
+    getCastings().push({ character_id: charId, include_voice: includeVoice });
+    refresh();
+    onChange();
+  });
+  if (resetBtnId) {
+    const resetBtn = $(`#${resetBtnId}`);
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        setCastings([]);
+        refresh();
+        onChange();
+      });
+    }
+  }
+
+  refresh();
+  return { refresh };
 }
 
-$("#add-casting-btn").addEventListener("click", () => {
-  const charId = $("#casting-character-select").value;
-  if (!charId) return;
-  const includeVoice = $("#casting-include-voice").checked;
-  stagedCastings.push({ character_id: charId, include_voice: includeVoice });
-  refreshCastingCharacterSelect();  // rebuilds the available list (now excluding this one) + re-renders staged list
+const newSceneCastingBuilder = createCastingBuilder({
+  categorySelectId: "casting-category-select",
+  characterSelectId: "casting-character-select",
+  voiceCheckboxId: "casting-include-voice",
+  addBtnId: "add-casting-btn",
+  resetBtnId: "reset-castings-btn",
+  stagedListId: "staged-castings-list",
+  getCastings: () => stagedCastings,
+  setCastings: (v) => { stagedCastings = v; },
+  getAllCharacters: () => allCharactersCache,
+  onChange: () => {},  // nothing extra needed -- the create form has no dirty-tracking
 });
 
-$("#reset-castings-btn").addEventListener("click", () => {
-  stagedCastings = [];
-  refreshCastingCharacterSelect();
-});
-
-function renderStagedCastings() {
-  const container = $("#staged-castings-list");
-  if (!stagedCastings.length) {
-    container.innerHTML = `<div class="meta">No characters added yet.</div>`;
-    return;
-  }
-  container.innerHTML = stagedCastings.map((sc, i) => {
-    const character = allCharactersCache.find(c => c.id === sc.character_id);
-    const name = character ? character.name : "?";
-    const hasVoice = character && character.voice_audio;
-    return `
-      <div class="staged-casting-row" data-index="${i}">
-        <span>${name}</span>
-        <label class="casting-voice-toggle">
-          <input type="checkbox" data-toggle-voice="${i}" ${sc.include_voice ? "checked" : ""} ${hasVoice ? "" : "disabled"}>
-          Include voice reference
-        </label>
-        <button type="button" data-remove-casting="${i}">Remove</button>
-      </div>`;
-  }).join("");
-  $$("[data-toggle-voice]", container).forEach(cb => {
-    cb.onchange = () => {
-      stagedCastings[parseInt(cb.dataset.toggleVoice, 10)].include_voice = cb.checked;
-    };
-  });
-  $$("[data-remove-casting]", container).forEach(btn => {
-    btn.onclick = () => {
-      stagedCastings.splice(parseInt(btn.dataset.removeCasting, 10), 1);
-      refreshCastingCharacterSelect();
-    };
-  });
+async function refreshCastingCharacterSelect() {
+  allCharactersCache = await api("/characters");
+  newSceneCastingBuilder.refresh();
 }
 
 async function refreshScenes() {
@@ -487,10 +596,13 @@ $("#scene-form").addEventListener("submit", async e => {
     style_preset: f.style_preset.value,
   };
   if (f.style_preset.value === "custom") payload.style_text = f.style_text.value;
-  if (f.id.value) await api(`/scenes/${f.id.value}`, { method: "PUT", body: JSON.stringify(payload) });
-  else await api("/scenes", { method: "POST", body: JSON.stringify(payload) });
+  const isNewScene = !f.id.value;
+  const saved = f.id.value
+    ? await api(`/scenes/${f.id.value}`, { method: "PUT", body: JSON.stringify(payload) })
+    : await api("/scenes", { method: "POST", body: JSON.stringify(payload) });
   hideSceneForm();
   refreshScenes();
+  if (isNewScene) await openSceneEditorTab(saved.id);  // jump straight into the new scene
 });
 
 // ---------- scene editor: dynamic tab, staged local edits, explicit save ----------
@@ -558,6 +670,13 @@ function shortenOutputPath(path) {
   if (!path) return "";
   const parts = path.split(/[\\/]/).filter(Boolean);
   return parts.length > 3 ? "…/" + parts.slice(-3).join("/") : path;
+}
+
+function formatRenderTimestamp(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
 }
 
 // ---------- timestamp widget: seconds + milliseconds, stored as "00:SS.mmm" ----------
@@ -689,8 +808,8 @@ function wireBeatFormBehavior(formEl) {
 // ---------- local (unsaved) mutations ----------
 function isSceneEditorDirty() {
   if (!openSceneEditor) return false;
-  return JSON.stringify(openSceneEditor.localScene.sequences) !==
-         JSON.stringify(openSceneEditor.savedSnapshot.sequences);
+  return JSON.stringify(openSceneEditor.localScene) !==
+         JSON.stringify(openSceneEditor.savedSnapshot);
 }
 
 function addLocalSequence(duration) {
@@ -708,6 +827,7 @@ function deleteLocalSequence(seqId) {
   seqs.forEach((s, i) => { s.index = i; });
   openSceneEditor.localScene.sequences = seqs;
   openSceneEditor.openBeatForms.delete(seqId);
+  openSceneEditor.openRenderHistory.delete(seqId);
   renderSceneEditorPanel();
 }
 
@@ -764,6 +884,7 @@ async function openSceneEditorTab(sceneId) {
   closeSceneEditor();  // discard anything previously open first, same-scene or not
 
   await loadDeliveryOptions();
+  await loadStyleOptions();
   const scene = await api(`/scenes/${sceneId}`);
   const allChars = await api("/characters");
   const allLocations = await api("/locations");
@@ -797,8 +918,11 @@ async function openSceneEditorTab(sceneId) {
     localScene: JSON.parse(JSON.stringify(scene)),
     savedSnapshot: JSON.parse(JSON.stringify(scene)),
     characters, locationLabel, charLabels,
+    allCharacters: allChars, allLocations,  // full lists, for the editable location/cast section
+    editingDetails: false,  // whether the "Edit Scene Details" section is expanded
     runStatus: null, runPollTimer: null,
     openBeatForms: new Set(),  // seq ids whose "add beat" form is currently expanded
+    openRenderHistory: new Set(),  // seq ids whose past-renders list is currently expanded
     promptFormat: "lean",  // live choice only -- not saved anywhere, sent fresh with
                             // each Generate/Run request; see index.html item 4 in the
                             // punch list for why this isn't a Scene/Sequence field
@@ -963,6 +1087,27 @@ function renderSceneEditorPanel() {
     const runEntry = running ? runSeqById[seq.id] : null;
     const outputPath = (runEntry && runEntry.output_video_path) || seq.output_video_path;
 
+    const history = seq.render_history || [];
+    const historyOpen = ed.openRenderHistory.has(seq.id);
+    const renderHistoryHtml = history.length ? `
+      <div class="render-history">
+        <button type="button" class="render-history-toggle" data-toggle-render-history>
+          ${historyOpen ? "▾" : "▸"} ${history.length} past render${history.length === 1 ? "" : "s"}
+        </button>
+        ${historyOpen ? `
+          <div class="render-history-list">
+            ${[...history].reverse().map(r => `
+              <div class="render-history-row" title="${r.output_video_path}">
+                <span class="render-history-date">${formatRenderTimestamp(r.rendered_at)}</span>
+                <span class="render-history-path">${shortenOutputPath(r.output_video_path)}</span>
+                <span class="render-history-meta">${r.prompt_format || "?"}${r.megapixels ? ` · ${r.megapixels.toFixed(1)} MP` : ""}</span>
+              </div>
+            `).join("")}
+          </div>
+        ` : ""}
+      </div>
+    ` : "";
+
     const beatFormOpen = ed.openBeatForms.has(seq.id);
     const addBeatHtml = beatFormOpen
       ? `<form class="beat-form" data-seq-id="${seq.id}">
@@ -976,29 +1121,110 @@ function renderSceneEditorPanel() {
 
     return `
       <div class="seq-card" data-seq-id="${seq.id}">
-        <div><strong>#${seq.index}</strong> — ${seq.duration}s
-          <span class="status ${badge}">${badge}</span></div>
+        <div class="seq-header">
+          <strong>#${seq.index}</strong> —
+          <input type="number" class="seq-duration-input" data-seq-duration
+            min="5" max="10" step="0.5" value="${seq.duration}" ${running ? "disabled" : ""}>s
+          <span class="status ${badge}">${badge}</span>
+        </div>
         <div class="beats">${beatsHtml}</div>
 
         ${addBeatHtml}
 
         <div class="seq-actions">
           <button data-generate ${running ? "disabled" : ""}>Generate workflow JSON</button>
+          <button data-render-sequence ${running ? "disabled" : ""}>Render This Sequence</button>
           <button data-resolve ${running ? "disabled" : ""}>Mark rendered / set output path</button>
           <button data-delete-sequence class="danger" ${running ? "disabled" : ""}>Delete sequence</button>
         </div>
         <div class="meta output-path" data-result title="${outputPath || ""}">${outputPath ? `Output: ${shortenOutputPath(outputPath)}` : ""}</div>
+        ${renderHistoryHtml}
       </div>`;
   }).join("");
 
+  const groupedLocations = {};
+  for (const loc of ed.allLocations) {
+    const key = loc.category || "Uncategorized";
+    (groupedLocations[key] = groupedLocations[key] || []).push(loc);
+  }
+  const locationCategoryKeys = Object.keys(groupedLocations).sort((a, b) => {
+    if (a === "Uncategorized") return 1;
+    if (b === "Uncategorized") return -1;
+    return a.localeCompare(b);
+  });
+  const selectedLocation = ed.allLocations.find(loc => loc.id === scene.location_id);
+  const selectedLocationCategory = selectedLocation ? (selectedLocation.category || "Uncategorized") : "";
+
+  const sceneStyleOptionsHtml = `<option value="">— no style opening set —</option>` +
+    styleOptions.map(o => `<option value="${o.key}" ${o.key === scene.style_preset ? "selected" : ""}>${o.label}</option>`).join("") +
+    `<option value="custom" ${scene.style_preset === "custom" ? "selected" : ""}>Custom…</option>`;
+
+  const detailsHtml = ed.editingDetails ? `
+    <div class="scene-details-editor">
+      <div class="field-group">
+        <label class="field-label" for="scene-editor-name">Scene name</label>
+        <input type="text" id="scene-editor-name" value="${scene.name}">
+      </div>
+      <div class="field-group">
+        <label class="field-label">Location</label>
+        <div class="location-picker-row">
+          <select id="scene-editor-location-category-select" ${locationCategoryKeys.length ? "" : "disabled"}>
+            ${locationCategoryKeys.length
+              ? locationCategoryKeys.map(k =>
+                  `<option value="${k}" ${k === selectedLocationCategory ? "selected" : ""}>${k}</option>`
+                ).join("")
+              : `<option value="">— no locations yet —</option>`}
+          </select>
+          <select id="scene-editor-location-select">
+            <option value="">-- choose a location --</option>
+          </select>
+        </div>
+      </div>
+      <div class="casting-builder">
+        <div class="casting-builder-label">Characters in this scene</div>
+        <div class="casting-add-row">
+          <select id="scene-editor-casting-category-select"></select>
+          <select id="scene-editor-casting-character-select"></select>
+          <label class="casting-voice-toggle">
+            <input type="checkbox" id="scene-editor-casting-include-voice" checked>
+            Include voice reference
+          </label>
+          <button type="button" id="scene-editor-add-casting-btn">+ Add Character</button>
+        </div>
+        <div id="scene-editor-staged-castings-list"></div>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="scene-editor-summary-premise">Scene premise</label>
+        <textarea id="scene-editor-summary-premise">${scene.summary_premise || ""}</textarea>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="scene-editor-style-select">Visual style</label>
+        <select id="scene-editor-style-select">${sceneStyleOptionsHtml}</select>
+        <input type="text" id="scene-editor-style-custom" placeholder="Describe the visual style (lighting, color palette, camera feel)"
+          value="${scene.style_preset === "custom" ? (scene.style_opening || "") : ""}"
+          style="display:${scene.style_preset === "custom" ? "block" : "none"}">
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="scene-editor-music">Non-diegetic music</label>
+        <textarea id="scene-editor-music">${scene.non_diegetic_music || ""}</textarea>
+      </div>
+    </div>
+  ` : "";
+
   ed.panel.innerHTML = `
     <h2>${scene.name}</h2>
+    <button type="button" class="add-beat-btn" data-toggle-scene-details>
+      ${ed.editingDetails ? "Done Editing Scene Details" : "Edit Scene Details"}
+    </button>
+    ${detailsHtml}
+    ${ed.editingDetails ? "" : `
     <div class="scene-info">
       <div><span class="info-label">Location</span> ${ed.locationLabel}</div>
       <div><span class="info-label">Characters</span> ${ed.charLabels}</div>
       <div><span class="info-label">Premise</span> ${scene.summary_premise || "— none set —"}</div>
       <div><span class="info-label">Visual style</span> ${scene.style_opening || "— none set —"}</div>
     </div>
+    `}
 
     <div class="save-bar prompt-format-bar">
       <div class="prompt-format-row">
@@ -1075,20 +1301,139 @@ function renderSceneEditorPanel() {
     ed.panel.querySelector("#scene-editor-megapixels-label").textContent = `${ed.megapixels.toFixed(1)} MP`;
   });
 
+  // ---------- editable scene details (name / location / cast / premise / style / music) ----------
+  ed.panel.querySelector("[data-toggle-scene-details]").addEventListener("click", () => {
+    ed.editingDetails = !ed.editingDetails;
+    renderSceneEditorPanel();
+  });
+
+  if (ed.editingDetails) {
+    ed.panel.querySelector("#scene-editor-name").addEventListener("change", e => {
+      ed.localScene.name = e.target.value;
+      renderSceneEditorPanel();
+    });
+
+    // Category -> Location cascade, same pattern as the character casting
+    // picker: pick a category, then pick a location within it.
+    const locCategorySelect = ed.panel.querySelector("#scene-editor-location-category-select");
+    const locSelect = ed.panel.querySelector("#scene-editor-location-select");
+    function syncLocationSelect() {
+      const locs = groupedLocations[locCategorySelect.value] || [];
+      locSelect.innerHTML = `<option value="">-- choose a location --</option>` +
+        locs.map(loc => `<option value="${loc.id}" ${loc.id === ed.localScene.location_id ? "selected" : ""}>${loc.name}</option>`).join("");
+    }
+    syncLocationSelect();
+    locCategorySelect.addEventListener("change", syncLocationSelect);
+    locSelect.addEventListener("change", e => {
+      ed.localScene.location_id = e.target.value;
+      renderSceneEditorPanel();
+    });
+
+    ed.panel.querySelector("#scene-editor-summary-premise").addEventListener("change", e => {
+      ed.localScene.summary_premise = e.target.value;
+      renderSceneEditorPanel();
+    });
+    ed.panel.querySelector("#scene-editor-music").addEventListener("change", e => {
+      ed.localScene.non_diegetic_music = e.target.value;
+      renderSceneEditorPanel();
+    });
+
+    const styleSelect = ed.panel.querySelector("#scene-editor-style-select");
+    const styleCustomInput = ed.panel.querySelector("#scene-editor-style-custom");
+    styleSelect.addEventListener("change", () => {
+      ed.localScene.style_preset = styleSelect.value;
+      if (styleSelect.value === "custom") {
+        styleCustomInput.style.display = "block";
+        ed.localScene.style_opening = styleCustomInput.value;
+      } else {
+        // Known presets (or "no style") get their actual text resolved
+        // server-side on save, same as delivery presets -- nothing to
+        // preview locally here.
+        styleCustomInput.style.display = "none";
+        if (styleSelect.value === "") ed.localScene.style_opening = "";
+      }
+      renderSceneEditorPanel();
+    });
+    styleCustomInput.addEventListener("input", () => {
+      if (styleSelect.value === "custom") ed.localScene.style_opening = styleCustomInput.value;
+    });
+
+    // Scoped to this scene's own cast, wired fresh on every render since
+    // the whole panel (and thus these DOM nodes) gets replaced each time.
+    createCastingBuilder({
+      categorySelectId: "scene-editor-casting-category-select",
+      characterSelectId: "scene-editor-casting-character-select",
+      voiceCheckboxId: "scene-editor-casting-include-voice",
+      addBtnId: "scene-editor-add-casting-btn",
+      resetBtnId: null,
+      stagedListId: "scene-editor-staged-castings-list",
+      getCastings: () => ed.localScene.character_castings,
+      setCastings: (v) => { ed.localScene.character_castings = v; },
+      getAllCharacters: () => ed.allCharacters,
+      onChange: () => renderSceneEditorPanel(),
+      beforeRemove: async (characterId) => {
+        const dependentSeqs = ed.localScene.sequences.filter(seq =>
+          seq.beats.some(b => b.kind === "dialogue" && b.character_id === characterId)
+        );
+        if (!dependentSeqs.length) return true;
+        const character = ed.allCharacters.find(c => c.id === characterId);
+        const name = character ? character.name : "This character";
+        const breakdown = dependentSeqs.map(seq => {
+          const count = seq.beats.filter(b => b.kind === "dialogue" && b.character_id === characterId).length;
+          return `#${seq.index} (${count} beat${count === 1 ? "" : "s"})`;
+        }).join(", ");
+        return confirm(
+          `${name} has dialogue in sequence ${breakdown}. Removing them from this scene will leave ` +
+          `those beats referencing a character no longer cast here -- you'll need to fix or remove ` +
+          `those beats before generating those sequences again.\n\nRemove ${name} anyway?`
+        );
+      },
+    });
+  }
+
   // save bar
   ed.panel.querySelector("[data-save-changes]").onclick = async () => {
     try {
+      const metadataPayload = {
+        name: ed.localScene.name,
+        location_id: ed.localScene.location_id,
+        character_castings: ed.localScene.character_castings,
+        non_diegetic_music: ed.localScene.non_diegetic_music,
+        summary_premise: ed.localScene.summary_premise,
+        style_preset: ed.localScene.style_preset,
+      };
+      if (ed.localScene.style_preset === "custom") metadataPayload.style_text = ed.localScene.style_opening;
+      await api(`/scenes/${ed.sceneId}`, { method: "PUT", body: JSON.stringify(metadataPayload) });
+
       const saved = await api(`/scenes/${ed.sceneId}/sequences_bulk`, {
         method: "PUT", body: JSON.stringify({ sequences: ed.localScene.sequences }),
       });
       ed.localScene = JSON.parse(JSON.stringify(saved));
       ed.savedSnapshot = JSON.parse(JSON.stringify(saved));
       ed.btn.textContent = saved.name;
+      ed.editingDetails = false;
+
+      // Derived display fields depend on which characters/location are now
+      // cast/chosen -- recompute from the character/location sets already
+      // cached on ed (those sets themselves haven't changed, just which
+      // members are referenced).
+      const castedIds = new Set(saved.character_castings.map(c => c.character_id));
+      ed.characters = ed.allCharacters.filter(c => castedIds.has(c.id));
+      const location = ed.allLocations.find(loc => loc.id === saved.location_id);
+      ed.locationLabel = location ? location.name : "— none chosen —";
+      ed.charLabels = saved.character_castings.length
+        ? saved.character_castings.map(casting => {
+            const c = ed.allCharacters.find(ch => ch.id === casting.character_id);
+            return c ? c.name : "?";
+          }).join(", ")
+        : "— none —";
+
       renderSceneEditorPanel();
+      refreshScenes();  // keep the Scenes tab's list (name, sequence count) in sync
     } catch (err) { alert(err.message); }
   };
   ed.panel.querySelector("[data-discard-changes]").onclick = () => {
-    if (!confirm("Discard all unsaved changes to this scene's sequences?")) return;
+    if (!confirm("Discard all unsaved changes to this scene?")) return;
     ed.localScene = JSON.parse(JSON.stringify(ed.savedSnapshot));
     renderSceneEditorPanel();
   };
@@ -1127,6 +1472,24 @@ function renderSceneEditorPanel() {
   // per-sequence cards
   for (const seq of sorted) {
     const card = ed.panel.querySelector(`.seq-card[data-seq-id="${seq.id}"]`);
+
+    card.querySelector("[data-seq-duration]").addEventListener("change", e => {
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val)) seq.duration = val;  // mutates the same object referenced in
+                                              // ed.localScene.sequences -- staged like
+                                              // every other edit, needs Save Changes
+      renderSceneEditorPanel();
+    });
+
+    const historyToggle = card.querySelector("[data-toggle-render-history]");
+    if (historyToggle) {
+      historyToggle.onclick = () => {
+        if (ed.openRenderHistory.has(seq.id)) ed.openRenderHistory.delete(seq.id);
+        else ed.openRenderHistory.add(seq.id);
+        renderSceneEditorPanel();
+      };
+    }
+
     const beatFormOpen = ed.openBeatForms.has(seq.id);
 
     if (beatFormOpen) {
@@ -1208,6 +1571,19 @@ function renderSceneEditorPanel() {
         const fresh = await api(`/scenes/${ed.sceneId}`);
         ed.localScene = JSON.parse(JSON.stringify(fresh));
         ed.savedSnapshot = JSON.parse(JSON.stringify(fresh));
+        renderSceneEditorPanel();
+      } catch (err) { alert(err.message); }
+    };
+    card.querySelector("[data-render-sequence]").onclick = async () => {
+      if (isSceneEditorDirty()) {
+        alert("You have unsaved changes. Save Changes before rendering a sequence.");
+        return;
+      }
+      try {
+        await api(`/scenes/${ed.sceneId}/sequences/${seq.id}/render`, {
+          method: "POST", body: JSON.stringify({ prompt_format: ed.promptFormat, randomize_seed: ed.randomizeSeed, megapixels: ed.megapixels }),
+        });
+        await refreshRunStatus();
         renderSceneEditorPanel();
       } catch (err) { alert(err.message); }
     };

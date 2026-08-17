@@ -129,13 +129,39 @@ class Beat:
 
 
 @dataclass
+class RenderRecord:
+    """One past render of a sequence. output_video_path is the actual file
+    that resulted; the rest is just context for telling versions apart
+    later (which prompt format/resolution produced this one)."""
+    output_video_path: str
+    rendered_at: str = ""    # ISO 8601 timestamp, UTC
+    prompt_format: str = ""  # "lean" or "full", whichever was used for this render
+    megapixels: float = 0.0
+
+    def to_dict(self):
+        return asdict(self)
+
+    @staticmethod
+    def from_dict(d):
+        return RenderRecord(**_known_fields(RenderRecord, d))
+
+
+@dataclass
 class Sequence:
     id: str
     index: int                  # order within the scene, 0-based
     duration: float = 8.0       # seconds, expected 5-10
     beats: list = field(default_factory=list)  # ordered list of Beat
     status: str = "pending"     # pending | generated | rendered
-    output_video_path: str = ""  # resolved absolute path once rendered (for chaining)
+    output_video_path: str = ""  # resolved absolute path of the LATEST render (for chaining)
+    render_history: list = field(default_factory=list)  # list of RenderRecord, oldest
+                                                          # first -- every past render this
+                                                          # sequence has had, including the
+                                                          # current output_video_path (its
+                                                          # last entry). Purely historical
+                                                          # record-keeping; nothing else in
+                                                          # the app reads from it except to
+                                                          # display it.
 
     def to_dict(self):
         d = asdict(self)
@@ -145,7 +171,9 @@ class Sequence:
     def from_dict(d):
         beats = [Beat.from_dict(b) if not isinstance(b, Beat) else b
                  for b in d.get("beats", [])]
-        d = {**d, "beats": beats}
+        render_history = [RenderRecord.from_dict(r) if not isinstance(r, RenderRecord) else r
+                           for r in d.get("render_history", [])]
+        d = {**d, "beats": beats, "render_history": render_history}
         return Sequence(**_known_fields(Sequence, d))
 
 
