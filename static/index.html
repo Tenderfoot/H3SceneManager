@@ -67,7 +67,11 @@
     <button type="button" id="add-location-btn">+ Add Location</button>
     <form id="location-form" class="entity-form" style="display:none">
       <input type="hidden" name="id">
-      <input type="text" name="name" placeholder="Name" required>
+
+      <div class="field-group">
+        <label class="field-label" for="location-name">Name</label>
+        <input type="text" name="name" id="location-name" placeholder="e.g. Bridge" required>
+      </div>
 
       <div class="field-group">
         <label class="field-label" for="location-category-select">Category</label>
@@ -75,10 +79,24 @@
         <input type="text" name="category_new" id="location-category-new" placeholder="New category name" style="display:none">
       </div>
 
-      <input type="text" name="reference_image" placeholder="Filename in ComfyUI's input/ dir (or an absolute path)">
-      <textarea name="visual_description" placeholder="Visual description of the location for the prompt"></textarea>
-      <textarea name="soundscape_description" placeholder="overall_soundscape text, e.g. 'A low ambient hum continues throughout.'"></textarea>
-      <textarea name="properties" placeholder='Other custom properties as JSON'></textarea>
+      <div class="field-group">
+        <label class="field-label" for="location-reference-image">Reference image</label>
+        <input type="text" name="reference_image" id="location-reference-image" placeholder="Filename in ComfyUI's input/ dir (or an absolute path)">
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="location-visual-description">Visual description</label>
+        <textarea name="visual_description" id="location-visual-description" placeholder="Visual description of the location for the prompt"></textarea>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="location-soundscape-description">Soundscape description</label>
+        <textarea name="soundscape_description" id="location-soundscape-description" placeholder="e.g. 'A low ambient hum continues throughout.'"></textarea>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="location-properties">Other properties (JSON)</label>
+        <textarea name="properties" id="location-properties" placeholder='e.g. {"time_of_day": "always night"}'></textarea>
+      </div>
       <div class="scene-form-actions">
         <button type="submit">Save Location</button>
         <button type="button" id="cancel-location-btn">Cancel</button>
